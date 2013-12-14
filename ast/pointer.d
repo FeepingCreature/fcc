@@ -120,8 +120,10 @@ class DerefExpr_ : LValue, HasInfo {
       // use addrspace(1) to preserve null accesses so they can crash properly
       if (true) {
         auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
+        string addrspacecast = "bitcast ";
+        if (llvmver() == 35) addrspacecast = "addrspacecast ";
         auto c = save(lf, src);
-             c = save(lf, "bitcast ", ptrtype, " ", c, " to ", fixedtype);
+             c = save(lf, addrspacecast, ptrtype, " ", c, " to ", fixedtype);
         load(lf, "load ", fixedtype, " ", c);
       } else {
         load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));

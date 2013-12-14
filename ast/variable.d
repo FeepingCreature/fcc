@@ -2,6 +2,8 @@ module ast.variable;
 
 import ast.base, ast.opers, ast.literals, parseBase, ast.casting, ast.static_arrays, ast.namespace;
 
+static int varcount;
+
 import dwarf2, tools.log;
 class Variable : LValue, Named {
   override {
@@ -25,11 +27,14 @@ class Variable : LValue, Named {
   string name;
   int baseIndex;
   string stacktype;
+  int count;
   this() { }
   this(IType t, int i, string s) {
     type = t;
     name = s;
     baseIndex = i;
+    count = varcount ++;
+    // if (count == 15783) asm { int 3; }
     stacktype = frametypePlus(type);
     // logln(":", name, ": ", stacktype, " for ", type, " @", baseIndex);
   }
@@ -43,7 +48,7 @@ class Variable : LValue, Named {
   Expr collapse() { return this; } // don't check, no foldopts
   string toString() {
     if (name) return name;
-    return Format("[ var of "[], type, " at "[], baseIndex, "]"[]);
+    return Format("[ var ", count, " of "[], type, " at "[], baseIndex, "]"[]);
   }
   void registerDwarf2(Dwarf2Controller dwarf2) {
     if (name && !name.startsWith("__temp"[])) {

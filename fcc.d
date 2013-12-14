@@ -443,7 +443,7 @@ void ast_math_constr() {
   // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
   // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
   // not supported on it
-  if (llvmver() != "3.1") {
+  if (llvmver() > 31) {
     if (!isWindoze()) {
       addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
     }
@@ -1236,7 +1236,7 @@ string cpumode() {
   // string cpu = "i686";
   string cpu = "nocona";
   if (isARM) cpu = null;
-  if (cpu && llvmver() != "3.1") return "-mcpu="~cpu~" ";
+  if (cpu && llvmver() > 31) return "-mcpu="~cpu~" ";
   return "";
 }
 
@@ -1256,15 +1256,15 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       "-fp-contract=fast "/*-vectorize */"-vectorize-loops ";
     if (!isWindoze()) fpmathopts ~= "-tailcallopt "; // TODO figure out why
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
-    if (llvmver() != "3.1") {
+    if (llvmver() > 31) {
       optflags ~= fpmathopts;
     }
-    if (llvmver() != "3.1" && llvmver() != "3.2") {
+    if (llvmver() > 32) {
       optflags ~= "-vectorize-slp -vectorize-slp-aggressive ";
     }
     string passflags = "-std-compile-opts ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
-    if (debugmode && llvmver() != "3.1") optflags ~= "-disable-fp-elim ";
+    if (debugmode && llvmver() > 31) optflags ~= "-disable-fp-elim ";
     optrun(cpumode()~passflags~optflags);
     llc_optflags = optflags;
   }
@@ -1357,7 +1357,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     } else {
       string bogus;
       string march;
-      if (llvmver() == "3.1") { }
+      if (llvmver() <= 31) { }
       else if (isARM) march="-march=arm -float-abi=hard -mcpu=arm1176jzf-s -mattr=+vfp2 ";
       else march = "-mattr=-avx,-avx2 -march=x86 ";
       if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";

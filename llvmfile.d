@@ -506,15 +506,16 @@ string llexcachecheck(string key) {
   return key;
 }
 
-string llvmver_cache;
-string llvmver() {
-  if (llvmver_cache) return llvmver_cache;
+int llvmver_cache = -1;
+int llvmver() {
+  if (llvmver_cache != -1) return llvmver_cache;
   auto res = readback("opt --version").between("LLVM version ", "\n");
-  // possible values
-  // 3.1
-  // 3.3svn
-  llvmver_cache = res;
-  return res;
+  assert(res.length >= 3 && res[1] == '.' &&
+    res[0] >= '0' && res[0] <= '9' &&
+    res[2] >= '0' && res[2] <= '9');
+  int ires = (res[0] - '0') * 10 + (res[2] - '0');
+  llvmver_cache = ires;
+  return ires;
 }
 
 alias void delegate(string) structDecompose_dg;

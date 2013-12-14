@@ -43,7 +43,9 @@ class _Assignment(T) : LineNumberedStatementClass {
         // use addrspace(1) to preserve null accesses so they can crash properly
         auto basetype = typeToLLVM(target.valueType());
         if (true) {
-          dest = save(lf, "bitcast ", basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
+          string addrspacecast = "bitcast ";
+          if (llvmver() == 35) addrspacecast = "addrspacecast ";
+          dest = save(lf, addrspacecast, basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
           put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)", "* ", dest);
         } else {
           put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
@@ -76,6 +78,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     // don't comment in without documenting why!
     // opt(ex);
     if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
+      // logln("can we assign our ", value.valueType(), " maybe to ", ex, "?");
       if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
         return false;
       thereWereAssignables = true;

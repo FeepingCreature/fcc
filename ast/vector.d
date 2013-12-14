@@ -828,7 +828,7 @@ class VecOp : Expr {
           default: fail("vector op "~op~" not implemented!");
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
-          if (llvmver() == "3.1" || llvmver() == "3.2") {
+          if (llvmver() < 33) {
             llop = "f"~llop;
           } else {
             llop = "f"~llop~" fast";
