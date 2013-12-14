@@ -148,6 +148,7 @@ void setupSysmods() {
       // printf("clean up %.*s\n", frameinfo.fun);
       frameinfo = prev;
     }
+    pragma(internalfn, "__popFrameInfo");
     template sys_array_cast(T) {
       template sys_array_cast(U) {
         T sys_array_cast(U u) {

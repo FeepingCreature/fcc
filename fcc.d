@@ -222,6 +222,18 @@ static this() {
     if (newarg) extra_linker_args = newarg ~ extra_linker_args;
     return Single!(NoOp);
   };
+  // from ast.fun
+  pragmas["internalfn"] = delegate Object(Expr ex) {
+    opt(ex);
+    auto se = fastcast!(StringExpr) (ex);
+    if (!se) fail(qformat("Expected string expression for pragma(internalfn, ...), not ", ex));
+    auto obj = namespace().lookup(se.str, false);
+    if (!obj) fail(qformat("Function not found for pragma(internalfn, ...): '", se.str, "' at ", namespace()));
+    auto fun = fastcast!(Function)(obj);
+    if (!fun) fail(qformat("Parameter not a function for pragma(internalfn, ...): ", obj));
+    fun.internalfn = true;
+    return Single!(NoOp);
+  };
 }
 
 static this() {

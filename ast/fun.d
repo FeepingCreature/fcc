@@ -466,7 +466,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     /*lf.put(linedebug(linecounter++), ":"[]);
     linenumbers ~= line;*/
   }
-  bool isInternal() { return false; }
+  // only needed for global functions that get expanded into delegates
+  // ie. __popFrameInfo in sys
+  bool internalfn;
+  bool isInternal() { return internalfn; }
   override {
     bool addsSelf() { return true; }
     string mangle(string name, IType type) {
