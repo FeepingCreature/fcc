@@ -149,16 +149,18 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     count = scope_count ++;
     // if (count == 8546) asm { int 3; }
     id = getuid();
-    sup = namespace();
+    setSup(namespace());
     lnsc = fastalloc!(Mew)();
   }
   void setSup(Namespace ns) {
+    if (!ns) { logln("creating scope in null ns - wtf"); fail; }
     sup = ns;
   }
   override Scope dup() {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     
+    namespace.set(sup);
     auto res = new Scope;
     res.field = field.dup;
     
