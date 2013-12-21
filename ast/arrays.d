@@ -355,9 +355,9 @@ class ArrayMaker : Expr {
   override Expr collapse() {
     Expr res;
     if (cap) {
-      res = mkTupleValueExpr(cap, length, ptr);
+      res = mkTupleValueExprMayDiscard(cap, length, ptr);
     } else {
-      res = mkTupleValueExpr(length, ptr);
+      res = mkTupleValueExprMayDiscard(length, ptr);
     }
     return reinterpret_cast(valueType(), res);
   }

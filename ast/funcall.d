@@ -401,7 +401,9 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         Statement[] inits;
         // logln(t3.nextText(), ": consider ", osfun);
         int score;
-        if (matchCall(t3, osfun, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
+        auto call = osfun.mkCall();
+        if (matchCall(t3, osfun, osfun.name, osfun.getParams(false), rest, call.params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
+          // logln("params = ", call.params);
           if (auto scd = fastcast!(Scored)(osfun)) score = scd.getScore(); // give preference to function's own score
           candidates ~= osfun;
           candsets ~= osfun.getParams(false);

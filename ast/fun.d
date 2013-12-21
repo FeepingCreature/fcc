@@ -274,6 +274,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       else t3.failparse("Unknown text! ");
     }
   }
+  string nameInfo() { return qformat(name, " in ", get!(IModule).getIdentifier()); }
   mixin ImporterImpl!(parseMe);
   Argument[] getParams(bool implicits) {
     if (implicits) {
@@ -569,7 +570,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         linkage ~= "fastcc ";
       }
       put(lf, "define ", linkage, retstr, " @", fmn, "(", argstr, ") ", flags, "{");
-      scope(success) put(lf, "}");
+      scope(success) { put(lf, "}"); lf.bbclear; }
+      
       if (extern_c) preserve ~= ","~fmn;
       
       lf.beginSection("function");
@@ -600,6 +602,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
           logln("due to ", llvmFrameTypes);
           asm { int 3; }
         }*/
+        lf.bbclear; // this stuff is actually put on the front.
         allocsize = readllex(allocsize);
         put(lf, "%__stackframe = alloca i8, i32 ", allocsize, ", align 16");
         // fill stackframe for params
@@ -642,6 +645,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       } else {
         put(lf, "unreachable");
       }
+      checkImportsUsage;
     }}
     
     Stuple!(IType, string)[] stackframe() {

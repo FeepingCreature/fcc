@@ -18,8 +18,11 @@ class mkDelegate : Expr {
     this.data = data;
   }
   mixin defaultIterate!(ptr, data);
-  mixin defaultCollapse!();
-  // Tree collapse() { return reinterpret_cast(valueType(), mkTupleExpr(ptr, data)); }
+  override Tree collapse() { return this; }
+  // ah. comment out until you can fix recursive type preservation fuzz buggy
+  /*override Tree collapse() {
+    return reinterpret_cast(valueType(), mkTupleValueExprMayDiscard(ptr, data));
+  }*/
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitLLVM(LLVMFile lf) {
     auto i8ds = save(lf, reinterpret_cast(voidp, data));
@@ -200,6 +203,7 @@ void callDg(LLVMFile lf, IType ret, Expr[] params, Expr dg) {
     fun  = collapse(mkMemberAccess(dgs, "fun"));
     data = collapse(mkMemberAccess(dgs, "data"));
   } else {
+    // logln("dgs = ", dgs, " not cheap to flatten");
     auto dgst = fastalloc!(LLVMValue)(save(lf, dgs), dgs.valueType());
     fun = mkMemberAccess(dgst, "fun");
     data = mkMemberAccess(dgst, "data");

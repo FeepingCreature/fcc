@@ -95,7 +95,7 @@ const string[] quicklist = [
   "ast.conditionals.CondExpr"[],
   "ast.base.CallbackExpr"[],
   "ast.fun.FunctionPointer"[],
-  "ast.vardecl.WithTempExpr"[],
+  "ast.base.WithTempExpr"[],
   "ast.conditionals.ExprWrap"[]
 ];
 

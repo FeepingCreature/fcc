@@ -6,6 +6,7 @@ class SelfAssignmentException : Exception {
   this() { super("self assignment detected"[]); }
 }
 
+extern(C) Tree fcc_assignment_collapse(Tree t);
 class _Assignment(T) : LineNumberedStatementClass {
   T target;
   Expr value;
@@ -28,11 +29,10 @@ class _Assignment(T) : LineNumberedStatementClass {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(target, value);
-  mixin defaultCollapse!();
+  Tree collapse() { return fcc_assignment_collapse(this); }
   override string toString() { return Format(target, " := "[], value, "; "[]); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
-    
     push(lf, save(lf, value));
     static if (is(T: MValue)) {
       target.emitAssignment(lf);
@@ -43,12 +43,14 @@ class _Assignment(T) : LineNumberedStatementClass {
         // use addrspace(1) to preserve null accesses so they can crash properly
         auto basetype = typeToLLVM(target.valueType());
         if (true) {
-          string addrspacecast = "bitcast ";
-          if (llvmver() == 35) addrspacecast = "addrspacecast ";
-          dest = save(lf, addrspacecast, basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
-          put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)", "* ", dest);
+          splitstore(lf, typeToLLVM(value.valueType()), src, basetype, dest, true);
+          // string addrspacecast = "bitcast ";
+          // if (llvmver() == 35) addrspacecast = "addrspacecast ";
+          // dest = save(lf, addrspacecast, basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
+          // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)* ", dest);
         } else {
-          put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+          splitstore(lf, typeToLLVM(value.valueType()), src, typeToLLVM(target.valueType()), dest, false);
+          // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
         }
       }
     }

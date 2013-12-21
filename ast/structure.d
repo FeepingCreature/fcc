@@ -444,10 +444,12 @@ mixin DefaultParser!(gotStructDef!(true), "struct_member.struct"[]);
 class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
-  this(Structure st, Expr[] exprs) {
+  bool safeToDiscard; // can throw away parts of this literal without running into issues
+  this(Structure st, Expr[] exprs, bool std = false) {
     this.st = st;
     foreach (ex; exprs) if (!ex) fail;
     this.exprs = exprs.dup;
+    this.safeToDiscard = std;
   }
   private this() { }
   mixin defaultIterate!(exprs);
@@ -462,6 +464,7 @@ class StructLiteral : Expr {
     StructLiteral dup() {
       auto res = new StructLiteral;
       res.st = st;
+      res.safeToDiscard = safeToDiscard;
       res.exprs = exprs.dup;
       foreach (ref entry; res.exprs) entry = entry.dup;
       return res;
@@ -489,6 +492,25 @@ class StructLiteral : Expr {
 
 interface IRefTuple {
   MValue[] getMVs();
+}
+
+// ripped off from llcast in fcc.d
+bool struct_types_with_same_layout(string a, string b) {
+  if (!a.endsWith("}") || !b.endsWith("}")) return false; // not struct types
+  string[] as, bs;
+  structDecompose(a, (string s) { as ~= s; });
+  structDecompose(b, (string s) { bs ~= s; });
+  if (as.length != bs.length) return false;
+  bool samelayout = true;
+  foreach (i, t1; as) {
+    auto t2 = bs[i];
+    // if types are not (the same or both pointers)
+    if (!(t1 == t2 || t1.endsWith("*") && t2.endsWith("*"))) {
+      samelayout = false;
+      break;
+    }
+  }
+  return samelayout;
 }
 
 import ast.pointer;
@@ -522,15 +544,35 @@ class MemberAccess_Expr : Expr, HasInfo {
   MemberAccess_Expr dup() {
     auto res = create();
     res.base = base.dup;
-    res.stm = stm.dup;
+    res.stm = stm;
     res.name = name;
     return res;
   }
   mixin defaultIterate!(base);
   Expr collapse() {
     auto nbase = .collapse(base);
+    auto lvnbase = fastcast!(LValue)(nbase);
+    if (!fastcast!(MemberAccess_LValue)(this) && lvnbase) {
+      if (!name) fail;
+      auto res = fastalloc!(MemberAccess_LValue)();
+      res.base = lvnbase.dup;
+      res.stm = stm;
+      res.name = name;
+      return .collapse(fastcast!(Expr)(res));
+    }
     bool deb;
-    /*if (stm.name == "self") {
+    if (auto wte = fastcast!(WithTempExpr)(nbase)) {
+      wte = fastcast!(WithTempExpr)(wte.dup);
+      
+      auto newmae = create();
+      newmae.base = wte.superthing;
+      newmae.stm  = stm;
+      newmae.name = name;
+      
+      wte.superthing = .collapse(fastcast!(Expr)(newmae));
+      return wte;
+    }
+    /*if (stm.name == "fun") {
       deb = true;
     }*/
     if (deb) logln("deb on");
@@ -568,16 +610,18 @@ class MemberAccess_Expr : Expr, HasInfo {
       logln("deb with ", stm, " into ", st);
       logln("deb BASE = ", fastcast!(Object)(nbase).classinfo.name, " ", nbase);
     }
-    if (auto sl = fastcast!(StructLiteral)~ nbase) {
-      /*foreach (expr; sl.exprs) {
-        logln("  ", expr);
-      }*/
-      if (!intendedForSplit && sl.exprs.length > 1) {
+    if (auto sl = fastcast!(StructLiteral) (nbase)) {
+      if (deb) {
+        foreach (expr; sl.exprs) {
+          logln("  ", expr);
+        }
+      }
+      if (!intendedForSplit && !sl.safeToDiscard && sl.exprs.length > 1) {
         bool cheap = true;
         foreach (ref ex; sl.exprs) {
           // if it was for multiple access, it'd already have checked for that separately
           if (!_is_cheap(ex, CheapMode.Flatten)) {
-            // logln("not cheap: "[], ex);
+            if (deb) logln("not cheap: "[], ex);
             cheap = false;
             break;
           }
@@ -591,13 +635,16 @@ class MemberAccess_Expr : Expr, HasInfo {
       else {
         // TODO: assert: struct member offsets identical!
       }
-      if (st) st.select((string, RelMember member) {
-        if (member.type == stm.type && member.index == stm.index && valueType() == sl.exprs[i].valueType()) {
-          res = sl.exprs[i];
+      if (st && struct_types_with_same_layout(typeToLLVM(st), typeToLLVM(sl.valueType()))) st.select((string, RelMember member) {
+        if (member.index == stm.index) {
+          res = .collapse(reinterpret_cast(stm.valueType(), sl.exprs[i]));
         }
         i++;
       }, &st.rmcache);
-      // logln(" => ", res);
+      if (deb) {
+        logln(" => ", res);
+        logln("(st ", st, ")");
+      }
       if (auto tr = fastcast!(Tree) (res))
         return tr;
     }
@@ -640,7 +687,6 @@ class MemberAccess_Expr : Expr, HasInfo {
     
     return this;
   }
-  mixin defaultCollapse!();
   override {
     import tools.log;
     string toString() {
@@ -651,11 +697,30 @@ class MemberAccess_Expr : Expr, HasInfo {
     void emitLLVM(LLVMFile lf) {
       auto bvt = resolveType(base.valueType());
       auto bs = typeToLLVM(bvt);
-      auto src = save(lf, base);
+      string src, srctype, extype;
+      if (auto rce = fastcast!(RCE)(base)) {
+        auto rfv = typeToLLVM(rce.from.valueType());
+        if (struct_types_with_same_layout(bs, rfv)) {
+          // logln("fold rce into mae: ", bs, " and ", rfv);
+          src = save(lf, rce.from);
+          srctype = rfv;
+          string[] strl;
+          structDecompose(rfv, (string s) { strl ~= s; });
+          extype = strl[stm.index];
+        }/* else {
+          logln("different layouts: ", bs, " and ", rfv);
+        }*/
+      }
+      if (!src) {
+        src = save(lf, base);
+        srctype = typeToLLVM(bvt);
+        extype = typeToLLVM(stm.type, true);
+      }
       // logln("1 bvt for ", this, " = ", fastcast!(Object)(bvt).classinfo.name, " ", bvt);
       if (fastcast!(Structure)(bvt).isUnion) {
         auto mt = typeToLLVM(stm.type);
         auto tmp = alloca(lf, "1", bs);
+        put(lf, "; of union");
         put(lf, "store ", bs, " ", src, ", ", bs, "* ", tmp);
         load(lf, "load ", mt, "* ", bitcastptr(lf, bs, mt, tmp));
         return;
@@ -664,8 +729,8 @@ class MemberAccess_Expr : Expr, HasInfo {
       // put(lf, "; to ", stm, " into ", typeToLLVM(bvt), " (", bvt, ")");
       // don't want to fall over and die if user code has a variable called "self"
       // if (name == "self") fail; // ast.vector done a baad baad thing
-      auto ex = save(lf, "extractvalue ", typeToLLVM(bvt), " ", src, ", ", stm.index);
-      auto from = typeToLLVM(stm.type, true), to = typeToLLVM(stm.type);
+      auto ex = save(lf, "extractvalue ", srctype, " ", src, ", ", stm.index);
+      auto from = extype, to = typeToLLVM(stm.type);
       if (from == to) { push(lf, ex); }
       else { llcast(lf, from, to, ex); }
     }
@@ -681,6 +746,12 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
   override {
     MemberAccess_LValue_ create() { return new MemberAccess_LValue_; }
     MemberAccess_LValue_ dup() { return fastcast!(MemberAccess_LValue_) (super.dup()); }
+    void emitLLVM(LLVMFile lf) {
+      emitLocation(lf);
+      auto ls = lf.pop();
+      auto lt = typeToLLVM(stm.type)~"*";
+      load(lf, "load ", lt, " ", ls);
+    }
     void emitLocation(LLVMFile lf) {
       (fastcast!(LValue)(base)).emitLocation(lf);
       auto ls = lf.pop();
@@ -725,6 +796,29 @@ Expr mkMemberAccess(Expr strct, string name) {
 
 pragma(set_attribute, C_mkMemberAccess, externally_visible);
 extern(C) Expr C_mkMemberAccess(Expr strct, string name) { return mkMemberAccess(strct, name); }
+
+Expr[] splitStruct(Expr ex) {
+  auto st = fastcast!(Structure)(resolveType(ex.valueType()));
+  if (!st) fail;
+  
+  auto types = st.types();
+  Expr[] res;
+  foreach (i, type; types) {
+    MemberAccess_Expr mae;
+    if (fastcast!(LValue) (ex)) mae = fastalloc!(MemberAccess_LValue)();
+    else mae = fastalloc!(MemberAccess_Expr)();
+    
+    mae.base = ex;
+    mae.intendedForSplit = true;
+    mae.name = qformat("_"[], i);
+    
+    auto mbrs = st.selectMap!(RelMember, "$"[]);
+    if (i >= mbrs.length) fail;
+    mae.stm = mbrs[i];
+    res ~= mae;
+  }
+  return res;
+}
 
 Expr depointer(Expr ex) {
   while (true) {

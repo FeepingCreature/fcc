@@ -1,7 +1,7 @@
 module llvmfile;
 
 import std.string: find, atoi, strip, replace;
-import tools.base: slice, endsWith, Stuple, stuple, between;
+import tools.base: slice, endsWith, Stuple, stuple, between, sw = startsWith;
 
 string datalayout;
 string xbreak;
@@ -218,6 +218,7 @@ class LLVMFile {
   
   string[string] decls;
   bool[string] undecls;
+  string[string] varcache;
   
   void push(string s) {
     if (!s.length) fail;
@@ -232,20 +233,36 @@ class LLVMFile {
   bool[string] targeted;
   void emitLabel(string l, bool forwardsOnly = false) {
     if (forwardsOnly && !(l in targeted)) return; // not used
+    varcache = null; // basic block end, discard cache
     .put(this, "br label %", l);
     put(l); put(":\n");
   }
   int getId() { return count++; }
   string getVar() { return qformat("%var", getId()); }
+  void bbclear() { varcache = null; }
+  static bool sideeffecty(string s) {
+    if (s.sw("call")) return true;
+    if (s.sw("load")) return true;
+    if (s.sw("alloca")) return true;
+    return false;
+  }
   string save(string s) {
+    if (auto p = s in varcache) {
+      // logln(s, " cached to ", *p);
+      return *p;
+    }
     auto id = getVar();
+    if (!sideeffecty(s)) {
+      // logln("insert cache: ", s, " = ", id);
+      varcache[s] = id;
+    }
+    
     .put(this, id, " = ", s);
     if (xbreak) {
       auto b = xbreak, a = b.slice("_");
       if (fn.find(a) != -1 && id == b)
         fail;
     }
-    // if (id == "%var334" && fn.find("socket") != -1) fail;
     return id;
   }
   void load(string s) {
@@ -534,4 +551,31 @@ bool llvmTypeIs16Aligned(string s) {
   // logln(s);
   // fail;
   return false;
+}
+
+void splitstore(LLVMFile lf, string fromtype, string from, string totype, string to, bool addrspace1) {
+  bool fromIsStruct = !!fromtype.endsWith("}"), toIsStruct = !!totype.endsWith("}");
+  if (fromIsStruct != toIsStruct) fail(qformat("incompatible types: ", fromtype, " into ", totype));
+  bool isStruct = fromIsStruct;
+  if (!isStruct) {
+    if (addrspace1) {
+      string addrspacecast = "bitcast ";
+      if (llvmver() == 35) addrspacecast = "addrspacecast ";
+      to = save(lf, addrspacecast, totype, "* ", to, " to ", totype, " addrspace(1)*");
+      put(lf, "store ", fromtype, " ", from, ", ", totype, " addrspace(1)* ", to);
+    } else {
+      put(lf, "store ", fromtype, " ", from, ", ", totype, "* ", to);
+    }
+    return;
+  }
+  // to is actually pointer to totype struct, but don't mind
+  int i;
+  string[] types2;
+  structDecompose(totype, (string s) { types2 ~= s; });
+  structDecompose(fromtype, (string subtype) {
+    auto elem = save(lf, "extractvalue ", fromtype, " ", from, ", ", i);
+    auto gep = save(lf, "getelementptr inbounds ", totype, "* ", to, ", i32 0, i32 ", i);
+    splitstore(lf, subtype, elem, types2[i], gep, addrspace1);
+    i++;
+  });
 }

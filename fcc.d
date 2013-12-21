@@ -640,6 +640,77 @@ extern(C) void printThing(LLVMFile lf, string s, Expr ex) {
   (buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString(s), ex), "mew")).emitLLVM(lf);
 }
 
+pragma(set_attribute, fcc_wte_collapse, externally_visible);
+extern(C) Expr fcc_wte_collapse(WithTempExpr wte) {
+  int llc, llrefc;
+  void countUses(ref Iterable it) {
+    if (it is wte.val) llc ++;
+    else if (it is wte.lltemp) llrefc ++;
+    else it.iterate(&countUses);
+  }
+  { Iterable it = wte.superthing; countUses(it); }
+  if (llc != 1 || llrefc > 0) {
+    // logln("bad form ", wte.superthing);
+    return wte;
+  }
+  void replace(ref Iterable it) {
+    if (it is wte.val) it = wte.thing;
+    else it.iterate(&replace);
+  }
+  Expr res = wte.superthing.dup;
+  { Iterable it = res; replace(it); res = fastcast!(Expr)(it); }
+  // logln("success: ", wte, " to ", res);
+  return res;
+}
+
+pragma(set_attribute, fcc_assignment_collapse, externally_visible);
+extern(C) Tree fcc_assignment_collapse(Tree tr) {
+  auto as = fastcast!(Assignment)(tr);
+  if (!as) return tr;
+  // decompose struct assign into {member assigns} for better llvm compat
+  auto value = as.value, target = as.target;
+  IType vvt; string llt; Structure st;
+  void regenInfo() {
+    vvt = resolveType(value.valueType());
+    llt = typeToLLVM(vvt);
+    st = fastcast!(Structure)(vvt);
+  }
+  regenInfo();
+  if (!st) {
+    if (!llt.endsWith("}")) return tr;
+    if (!!fastcast!(Array)(vvt) || fastcast!(ExtArray)(vvt)) {
+      value = arrayToStruct(value);
+      target = arrayToStruct(target);
+      regenInfo();
+    } else if (fastcast!(Delegate)(vvt)) {
+      value = dgAsStruct(value);
+      target = fastcast!(LValue)(dgAsStruct(target));
+      regenInfo();
+    }
+  }
+  if (auto st = fastcast!(Structure)(vvt)) {
+    if (!_is_cheap(value, CheapMode.Flatten)) {
+      // logln("not cheap 1: ", value);
+      return tr;
+    }
+    if (!_is_cheap(target, CheapMode.Flatten)) {
+      // logln("not cheap 2: ", target);
+      return tr;
+    }
+    auto from = splitStruct(value), to = splitStruct(target);
+    if (from.length != to.length) fail;
+    auto ags = fastalloc!(AggrStatement)();
+    foreach (i, sfrom; from) {
+      auto sto = to[i];
+      ags.stmts ~= mkAssignment(sto, sfrom);
+    }
+    return ags;
+  } else {
+    // if (llt.endsWith("}")) logln("not struct: ", resolveType(value.valueType()), " but ", llt);
+  }
+  return tr;
+}
+
 // from ast.fun
 import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -741,12 +812,14 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
       if (llvmTypeIs16Aligned(from)) {
         auto ap = alloca(lf, "1", from);
         auto fs = bitcastptr(lf, from, to, ap);
-        put(lf, "store ", from, " ", v, ", ", from, "* ", ap);
+        splitstore(lf, from, v, from, ap, false);
+        // put(lf, "store ", from, " ", v, ", ", from, "* ", ap);
         v = save(lf, "load ", to, "* ", fs);
       } else {
         auto ap = alloca(lf, "1", to);
         auto fs = bitcastptr(lf, to, from, ap);
-        put(lf, "store ", from, " ", v, ", ", from, "* ", fs);
+        splitstore(lf, from, v, from, fs, false);
+        // put(lf, "store ", from, " ", v, ", ", from, "* ", fs);
         v = save(lf, "load ", to, "* ", ap);
       }
     } else if (from.endsWith("*") && to == "i32") {
@@ -1055,6 +1128,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (rc.from);
     if (fastcast!(Variable) (ex))
       return true;
+    if (auto sca = fastcast!(SuperContextAccess) (ex))
+      return true;
     if (auto mae = fastcast!(MemberAccess_Expr) (ex))
       return cheaprecurse (mae.base);
     if (fastcast!(Literal) (ex))
@@ -1065,7 +1140,7 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse(ea.base);
     if (fastcast!(GlobVar) (ex))
       return true;
-    if (fastcast!(LLVMValue) (ex))
+    if (fastcast!(LLVMValue) (ex) || fastcast!(LLVMRef) (ex))
       return true;
     if (auto re = fastcast!(RefExpr) (ex))
       return cheaprecurse (re.src);

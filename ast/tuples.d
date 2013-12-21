@@ -221,13 +221,16 @@ static this() {
   };
 }
 
-Expr mkTupleValueExpr(Expr[] exprs...) {
+Expr mkTupleValueExprBase(Expr[] exprs, bool mayDiscard) {
   auto tup = mkTuple(
     exprs /map/ (Expr ex) { return ex.valueType(); },
     exprs /map/ (Expr ex) { if (auto na = fastcast!(NamedArg)(ex)) return na.name; return cast(string) null; }
   );
-  return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup));
+  return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup, mayDiscard));
 }
+
+Expr mkTupleValueExpr(Expr[] exprs...) { return mkTupleValueExprBase(exprs, false); }
+Expr mkTupleValueExprMayDiscard(Expr[] exprs...) { return mkTupleValueExprBase(exprs, true); }
 
 class LValueAsMValue : MValue {
   LValue sup;

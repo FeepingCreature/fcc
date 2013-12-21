@@ -55,8 +55,14 @@ template ReinterpretCast_Contents(T) {
     if (from.valueType() == to) {
       return from;
     }
-    if (auto rce2 = fastcast!(RCE) (.collapse(from))) {
+    auto from = .collapse(from);
+    if (auto rce2 = fastcast!(RCE) (from)) {
       return reinterpret_cast(to, .collapse(rce2.from));
+    }
+    if (auto wte = fastcast!(WithTempExpr)(from)) {
+      wte = fastcast!(WithTempExpr)(wte.dup);
+      wte.superthing = .collapse(reinterpret_cast(to, wte.superthing));
+      return wte;
     }
     return this;
   }

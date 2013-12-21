@@ -34,22 +34,12 @@ class FullSlice : Expr {
     }
   }
   mixin defaultIterate!(sup);
-  mixin defaultCollapse!();
   override {
+    Expr collapse() { return tmpize_maybe(sup, (Expr sup) { return mkArraySlice(sup, mkInt(0), getArrayLength(sup)); }); }
     FullSlice dup() { return fastalloc!(FullSlice)(sup.dup); }
     IType valueType() { return type; }
     string toString() { return fastcast!(Object)(sup).toString()~"[]"; }
-    import ast.vardecl, ast.assign;
-    void emitLLVM(LLVMFile lf) {
-      auto svt= sup.valueType();
-      auto svts=typeToLLVM(svt);
-      auto tp = alloca(lf, "1", svts);
-      put(lf, "store ", svts, " ", save(lf, sup), ", ", svts, "* ", tp);
-      auto temp = fastalloc!(DerefExpr)(fastalloc!(LLVMValue)(tp, fastalloc!(Pointer)(svt)));
-      auto slice = mkArraySlice(temp, mkInt(0), getArrayLength(temp));
-      opt(slice);
-      slice.emitLLVM(lf);
-    }
+    void emitLLVM(LLVMFile lf) { fail; }
   }
 }
 
