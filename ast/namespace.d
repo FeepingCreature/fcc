@@ -529,30 +529,33 @@ template ImporterImpl(alias parseme = noop) {
       case ImportType.Static: return &static_imports;
     }
   }
-  void checkImportsUsage() { parseme(); ast.namespace.check_imports_usage(name, imports, importsUsed); }
+  void checkImportsUsage() { parseme(); ast.namespace.check_imports_usage(this.nameInfo(), imports, importsUsed); }
   Object lookupInImports(string name, bool local) {
     Object res;
     Namespace source;
     const debug_lookup = false;
-    void addres(Object obj, Namespace src) {
+    // return true if obj was a new thing
+    const AlreadyHadIt = false, WasNewObject = true;
+    bool addres(Object obj, Namespace src) {
       static if (debug_lookup) logln("mew: "[], name, " => "[], obj, " - "[], obj.classinfo.name);
-      if (!res) { res = obj; source = src; return; }
+      if (!res) { res = obj; source = src; return WasNewObject; }
       auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
       if (ex && !ex2 || !ex && ex2) {
         throw new Exception(Format("While looking up "[], name, ": ambiguity between "[],
           res, " and "[], obj, ": one is overloadable and the other isn't"[]));
       }
+      if (res is obj) return AlreadyHadIt;
       if (!ex) {
-        if (res is obj) return;
         auto t1 = fastcast!(IType) (res);
         auto t2 = fastcast!(IType) (obj);
-        if (t1 && t2 && t1 == t2) return;
+        if (t1 && t2 && t1 == t2) return AlreadyHadIt;
         throw new Exception(Format(
           "Name ambiguous: '", name, "' can refer to both ", source, ".", name, " and ", src, ".", name
         ));
         // fail;
       }
       res = fastcast!(Object) (ex.extend(ex2));
+      return WasNewObject;
     }
     void finalize() {
       auto xt = fastcast!(Extensible) (res);
@@ -580,16 +583,47 @@ template ImporterImpl(alias parseme = noop) {
       return res;
     }
     
+    int[] availableFrom;
+    int numDistinct;
     foreach (i, ns; imports) {
       static if (debug_lookup) logln("3: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
-        if (*peeky_lookup.ptr()) {
-        } else {
-          *getPtrResizing(importsUsed, i) = true;
-        }
-        addres(res, ns);
+        if (addres(res, ns) == WasNewObject) numDistinct ++;
+        availableFrom ~= i;
       }
     }
+    if (*peeky_lookup.ptr()) { }
+    else {
+      /*string iname(Namespace ns) { return fastcast!(IModule)(ns).getIdentifier(); }
+      string imod;
+      if (auto ns = fastcast!(Namespace)(this)) if (auto im = ns.get!(IModule)) imod = im.getIdentifier();*/
+      if (numDistinct > 1) {
+        // logln(imod, "- ", name, " pulls in everything:");
+        // not sure how to safely decide this
+        // just mark every source as an import
+        foreach (i; availableFrom) {
+          // logln(imod, "  - ", iname(imports[i]));
+          *getPtrResizing(importsUsed, i) = true;
+        }
+      } else if (numDistinct == 1) {
+        // only one result was found
+        // see if it's available from an import that we already marked as "used"
+        bool availableFromUsedImport;
+        foreach (i; availableFrom)
+          if (*getPtrResizing(importsUsed, i)) {
+            // logln(imod, "- skip ", name, " due to ", iname(imports[i]));
+            availableFromUsedImport = true;
+            break;
+          }
+        if (!availableFromUsedImport) {
+          // just mark first import as used
+          // TODO better way to decide this?
+          // logln(imod, "- mark ", iname(imports[availableFrom[0]]), " due to ", name);
+          *getPtrResizing(importsUsed, availableFrom[0]) = true;
+        }
+      }
+    }
+    
     
     if (sysmod && sysmod !is this && name != "std.c.setjmp"[])
       if (auto res = sysmod.lookup(name, true))

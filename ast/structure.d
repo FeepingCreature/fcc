@@ -116,6 +116,7 @@ final class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Impor
   bool isImmutableNow;
   int cached_length, cached_size;
   string cached_llvm_type, cached_llvm_size;
+  string nameInfo() { return qformat(name, " in ", get!(IModule).getIdentifier()); }
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
   string offsetOfNext(IType it) {

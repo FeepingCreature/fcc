@@ -12,7 +12,8 @@ pragma(set_attribute, check_imports_usage, externally_visible);
 extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed) {
   foreach (i, ns; imports) if (auto mod = fastcast!(Module) (ns)) {
     // importing module with constructor can be valid reason to import never-used module.
-    if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
+    // THOUGH: if you do this, you are kind of a bad person.
+    if (/*!mod.constrs.length && */!*getPtrResizing(importsUsed, i))
       logSmart!(false)("WARN:"[], info, ": import "[], mod.name, " never used. "[]);
   }
 }
@@ -24,6 +25,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   string name;
   string sourcefile;
   string cleaned_name() { return name.cleanup(); }
+  string nameInfo() { return name; }
   mixin ImporterImpl!();
   Function[] constrs;
   Tree[] entries;
