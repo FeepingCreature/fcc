@@ -160,7 +160,9 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     
-    namespace.set(sup);
+    // only do this as a fallback
+    // otherwise rely on our above stuff to set the dupped namespace
+    if (!namespace()) namespace.set(sup);
     auto res = new Scope;
     res.field = field.dup;
     
