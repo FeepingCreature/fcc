@@ -1,0 +1,7 @@
+module test198;
+
+void main() {
+  enum Foo { A }
+  Foo f;
+  assert("$f" == "A");
+}

@@ -189,6 +189,7 @@ grabIdentifier:
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotEnum, "tree.toplevel.enum"[], null, "enum"[]);
+mixin DefaultParser!(gotEnum, "tree.stmt.enum"[], "313"[], "enum"[]);
 
 // enums cast implicitly to their base type
 // this can be useful when wrapping APIs
