@@ -119,15 +119,18 @@ extern(C) void recordFrame(Scope sc) {
     logln("no fun under ", sc);
     fail;
   }
-  /*if (fun.mangleSelf() == "reverse_module_std_0E_util__of_function_of_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int__templinst_reverse_with_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int") {
+  /*if (fun.mangleSelf() == "dgwrapper_module_cltest2__of_function_of_dg_ret_void_args_tuple__ptrto_char_ptrto_void_size_t__templinst_dgwrapper_under_cltest2_with_tuple__ptrto_char_ptrto_void_size_t") {
     string stackinfo;
     foreach (entry; sc.stackframe()) {
       if (stackinfo) stackinfo ~= ", ";
       stackinfo ~= qformat(entry._0, ": ", entry._1);
     }
-    logln("record for ", cast(void*) fun, " ", fun.name, /*" (", fun.getParams(true), "), * /": ", frametype2(sc), " from ", stackinfo, ": ", sc.field);
-  }*/
-  fun.llvmFrameTypes ~= frametype2(sc);
+    logln("record for ", fun.idnum, " ", cast(void*) fun, " ", fun.name, /*" (", fun.getParams(true), "), * /": ", frametype2(sc), " from ", stackinfo, ": ", sc.field);
+    fun.llvmFrameTypes ~= frametype2(sc);
+    logln("to ", fun.llvmFrameTypes);
+  } else {*/
+    fun.llvmFrameTypes ~= frametype2(sc);
+  //}
 }
 
 extern(C) {
@@ -240,6 +243,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         auto dgex = C_mkDgConstructExpr(r, ptrval);
         auto pfun = C_mkPFNestFun(dgex);
         
+        auto backupns = namespace();
+        scope(exit) namespace.set(backupns);
         auto sc = fastcast!(Scope)(tree);
         if (!sc) fail;
         namespace.set(sc);
@@ -597,8 +602,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
           if (allocsize.length > 1024*1024) fail;
           accounted[type] = true;
         }
-        /*if (fmn == "reverse_module_std_0E_util__of_function_of_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int__templinst_reverse_with_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int") {
-          logln("alloc (", cast(void*) this, ") ", readllex(allocsize), " - ", allocsize);
+        /*if (fmn == "dgwrapper_module_cltest2__of_function_of_dg_ret_void_args_tuple__ptrto_char_ptrto_void_size_t__templinst_dgwrapper_under_cltest2_with_tuple__ptrto_char_ptrto_void_size_t") {
+          logln("alloc ", idnum, " ", cast(void*) this, " ", name, " ", readllex(allocsize), " - ", allocsize);
           logln("due to ", llvmFrameTypes);
           asm { int 3; }
         }*/

@@ -5,8 +5,14 @@ import c.openssl.(ssl, err);
 
 pragma(pkg-config, "openssl");
 
-void sendmail(string from, to, subject, content, host, logindata, bool dbg = false) {
-  auto sock = new Socket(host, 25);
+void sendmail(string from, to, subject, content, host, logindata, bool smtps = false, bool dbg = false) {
+  alias starttls = !smtps; // one or the other
+  
+  short port = 25;
+  if (smtps) port = 465;
+  auto sock = new Socket(host, port);
+  auto close = \{ sock.close; };
+  onExit close();
   Iterator!string readline = castIter!string readsocket sock #.splitAt "\r\n";
   
   ref mode = *new string;
@@ -26,6 +32,47 @@ void sendmail(string from, to, subject, content, host, logindata, bool dbg = fal
     }
     dbgread line;
   }
+  void setupssl() {
+    void ssl-assert(bool b) {
+      if (!b) {
+        ERR_print_errors_fp(stderr);
+        fail;
+      }
+    }
+    using prefix SSL_ {
+      SSL_library_init;
+      load_error_strings;
+      auto method = SSLv3_client_method();
+      auto ctx = CTX_new method;
+      ssl-assert !!ctx;
+      auto ssl = SSL_new ctx;
+      ssl-assert !!ssl;
+      ssl-assert !!ssl.set_fd sock.sockfd;
+      ssl-assert (ssl.connect >= 1);
+      if (dbg) writeln "SSL session set up. ";
+      sendline = new \(string s) {
+        dbgwrite s;
+        void writeAll(string s) while (s.length) {
+          auto res = ssl.write(s.ptr, s.length);
+          ssl-assert(res > 0);
+          s = s[res .. $];
+        }
+        writeAll s;
+        writeAll "\r\n";
+      };
+      readline = castIter!string readDg new \(ubyte[] field) {
+        auto res = ssl.read(field.ptr, field.length);
+        ssl-assert(res > 0);
+        return res; 
+      } #.splitAt "\r\n";
+      mode = "ssl";
+      auto sockclose = close;
+      close = new \{ ssl-assert(shutdown ssl != -1); sockclose(); };
+    }
+  }
+  // if smtps, set up ssl from the start
+  if (smtps) setupssl;
+  
   expectline "220";
   
   void read250s() {
@@ -36,50 +83,16 @@ void sendmail(string from, to, subject, content, host, logindata, bool dbg = fal
       fail "Received unexpected data: $line";
     }
   }
-  
-  sendline "EHLO 127.0.0.1";
-  read250s; // a bunch of 250- followed by one 250␣
-  
-  void ssl-assert(bool b) {
-    if (!b) {
-      ERR_print_errors_fp(stderr);
-      fail;
-    }
+  // otherwise, set it up now
+  if (mode == "tcp") {
+    sendline "EHLO 127.0.0.1";
+    read250s; // a bunch of 250- followed by one 250␣
+    assert(starttls);
+    sendline "STARTTLS";
+    expectline "220 "; // ready to start tls
+    setupssl;
   }
-  sendline "STARTTLS";
-  expectline "220 "; // ready to start tls
-  auto close = \{ sock.close; };
-  onExit close();
-  using prefix SSL_ {
-    SSL_library_init;
-    load_error_strings;
-    auto method = SSLv3_client_method();
-    auto ctx = CTX_new method;
-    ssl-assert !!ctx;
-    auto ssl = SSL_new ctx;
-    ssl-assert !!ssl;
-    ssl-assert !!ssl.set_fd sock.sockfd;
-    ssl-assert (ssl.connect >= 1);
-    if (dbg) writeln "SSL session set up. ";
-    sendline = new \(string s) {
-      dbgwrite s;
-      void writeAll(string s) while (s.length) {
-        auto res = ssl.write(s.ptr, s.length);
-        ssl-assert(res > 0);
-        s = s[res .. $];
-      }
-      writeAll s;
-      writeAll "\r\n";
-    };
-    readline = castIter!string readDg new \(ubyte[] field) {
-      auto res = ssl.read(field.ptr, field.length);
-      ssl-assert(res > 0);
-      return res; 
-    } #.splitAt "\r\n";
-    mode = "ssl";
-    close = new \{ ssl-assert(shutdown ssl != -1); close(); };
-  }
-  // now over ssl
+  // now definitely over ssl
   sendline "EHLO 127.0.0.1";
   read250s;
   

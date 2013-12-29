@@ -47,6 +47,7 @@ class Semaphore {
   import std.file, c.errno;
   /*Function: claim*/
   void claim() { while (sem_wait(&hdl) == -1) { if (errno == EINTR) continue; raise new ErrnoError("sem_wait"); } }
+  void acquire() claim;
   /*Function: release*/
   void release() { while (sem_post(&hdl) == -1) { if (errno == EINTR) continue; raise new ErrnoError("sem_wait"); } }
 }
@@ -85,6 +86,8 @@ void startThread(void delegate() dg) {
   arg[5] = onThreadCreation;
   
   auto res = pthread_create(&buf, null, &__start_routine, &arg);
+  pthread_detach(buf); // we don't wrap _join(). feh.
+  
   arg[3].claim;
 }
 

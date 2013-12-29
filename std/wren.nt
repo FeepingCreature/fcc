@@ -272,6 +272,12 @@ template Reference(T) {
     void init(T* t) { ptr = t; }
     Thing eval(Context, GlobalSpace) { return neat-to-wren *ptr; }
     void assign(Context c, GlobalSpace gs, Thing newval) {
+      static if (types-equal (T, vec4f)) {
+        if (auto v3 = Vec3f: newval) {
+          *ptr = vec4f(v3.value, (*ptr).w);
+          return;
+        }
+      }
       *ptr = wren-to-neat!T newval;
     }
     string toString() { return "&$(*ptr)"; }

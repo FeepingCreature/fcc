@@ -1,7 +1,8 @@
 module cltest;
 
 import c.CL.cl;
-import sys, std.string;
+import sys, std.string, std.util;
+pragma(lib, "OpenCL");
 
 extern(C) cl_context clCreateContextFromType(
   cl_context_properties *properties,
@@ -12,43 +13,40 @@ extern(C) cl_int clBuildProgram(
   cl_program, cl_uint, cl_device_id*, char*,
   void function(cl_program, void*), void*);
 
-template dgwrapper(T) <<EOF
-  class DelegateHolder {
-    void delegate(T) dg;
-    void call(T t) { dg(t); }
+template dgwrapper(T) {
+  extern(C) void callHolder(T t, void* ptr) {
+    auto trip = *(void*, void delegate(T) dg)*:ptr;
+    auto _threadlocal = getThreadlocal();
+    trip[1](t);
   }
-  void callHolder(T t, void* ptr) {
-    (DelegateHolder:ptr).call(t);
-  }
-  (void function(T, void*), void*) dgwrapper(void delegate(T) dg) {
-    auto res = new DelegateHolder;
-    res.dg = dg;
-    return (&callHolder, void*:res);
-  }
-EOF
-
-void clCheckRes (int i) {
-  if (i != 0) {
-    writeln "Failed with $i! ";
-    _interrupt 3;
+  auto dgwrapper(void delegate(T) dg) {
+    auto ptr = new (void*, void delegate(T));
+    (*ptr) = (null, dg);
+    return (&callHolder, void*:ptr);
   }
 }
 
-template clCheckCall(alias A) <<EOF
-  template clCheckCall(T) <<EO2
+void clCheckRes (int i) {
+  if (i != 0) {
+    fail "CL failed with $i! ";
+  }
+}
+
+template clCheckCall(alias A) {
+  template clCheckCall(T) {
     type-of A(value-of!T, null) clCheckCall(T t) {
       int error;
       onExit clCheckRes (error);
       return A(t, &error);
     }
-  EO2
-EOF
+  }
+}
 
 cl_context createContextFromType(cl_context_properties[] props, cl_device_type type, void delegate(char* errinfo, void* private_info, size_t cb) notify) {
   cl_int ret;
   auto tup = dgwrapper!(char*, void*, size_t)(void delegate((char*,void*,size_t)):notify);
   props ~= cl_context_properties:0;
-  return clCheckCall!clCreateContextFromType (props.ptr, type, tup);
+  return clCheckCall!clCreateContextFromType (props.ptr, type, (ParamTypes type-of &clCreateContextFromType)[2]: tup[0], tup[1]);
 }
 
 import sdl;
@@ -59,6 +57,7 @@ int main() {
       float blend = 0;
       int aa = 4;
       int ix = get_global_id(0), iy = get_global_id(1);
+      switch (aa) { case 4: ; }
       for (int sy = 0; sy < aa; sy++) {
         for (int sx = 0; sx < aa; sx++) {
           float x = ix + (float) sx / aa, y = iy + (float) sy / aa;
@@ -79,71 +78,70 @@ int main() {
     }"[];
   int ids;
   clCheckRes clGetPlatformIDs(0, null, &ids);
-  auto platforms = new cl_platform_id[ids];
+  auto platforms = new cl_platform_id[] ids;
   clCheckRes clGetPlatformIDs(ids, platforms.ptr, null);
   writeln "$ids platform(s). ";
-  cl_device_id[] getDevices(cl_platform_id platform) {
+  cl_device_id[] getDevices(cl_platform_id platf) {
     int devs;
-    clCheckRes clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, 0, null, &devs);
+    clCheckRes clGetDeviceIDs (platf, CL_DEVICE_TYPE_ALL, 0, null, &devs);
     if (!devs) return null;
-    auto devlist = new cl_device_id[devs];
-    clCheckRes clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, devs, devlist.ptr, null);
+    auto devlist = new cl_device_id[] devs;
+    clCheckRes clGetDeviceIDs (platf, CL_DEVICE_TYPE_ALL, devs, devlist.ptr, null);
     return devlist;
   }
-  while (int i, cl_platform_id platform) <- [for k <- 0..ids: (k, platforms[k])] {
-    while (string info, int enum) <- [
+  while (int i, cl_platform_id platf) <- [for k <- 0..ids: (k, platforms[k])] {
+    auto things = [
      ("Profile"[], CL_PLATFORM_PROFILE),
      ("Version"[], CL_PLATFORM_VERSION),
      ("Name"[],    CL_PLATFORM_NAME),
      ("Vendor"[],  CL_PLATFORM_VENDOR),
-     ("Extensions"[], CL_PLATFORM_EXTENSIONS)]
+     ("Extensions"[], CL_PLATFORM_EXTENSIONS)];
+    while (string info, int enum) <- things
     {
       int size;
-      clCheckRes clGetPlatformInfo (platform, enum, 0, null, &size);
-      auto store = new char[size];
+      clCheckRes clGetPlatformInfo (platf, enum, 0, null, &size);
+      auto store = new char[] size;
       onExit store.free();
-      clCheckRes clGetPlatformInfo (platform, enum, size, store.ptr, int*:null);
+      clCheckRes clGetPlatformInfo (platf, enum, size, store.ptr, int*:null);
       writeln "$i: $info = $store";
     }
-    auto devlist = getDevices(platform);
+    auto devlist = getDevices(platf);
     onExit devlist.free;
     if (!devlist.length) {
       writeln "No devices. ";
     } else {
-      int k; cl_device_id dev;
       string devinfo; int enum2;
-      while ((k, dev), (devinfo, enum2)) <- cross (
-        [for k <- 0..devlist.length: (k, devlist[k])],
-        [("Extensions"[], CL_DEVICE_EXTENSIONS),
-        ("Name"[], CL_DEVICE_NAME),
-        ("Profile"[], CL_DEVICE_PROFILE),
-        ("Vendor"[], CL_DEVICE_VENDOR),
-        ("Version"[], CL_DEVICE_VERSION),
-        ("DriverVersion"[], CL_DRIVER_VERSION)])
-      {
-        int size;
-        clCheckRes clGetDeviceInfo (dev, enum2, 0, null, &size);
-        auto devstore = new char[size];
-        onExit devstore.free;
-        clCheckRes clGetDeviceInfo (dev, enum2, size, devstore.ptr, int*:null);
-        writeln "  $k: $devinfo = $devstore ($size)";
+      for (int k <- ints) && (auto dev <- devlist) {
+        alias things = [("Extensions"[], CL_DEVICE_EXTENSIONS),
+          ("Name"[], CL_DEVICE_NAME),
+          ("Profile"[], CL_DEVICE_PROFILE),
+          ("Vendor"[], CL_DEVICE_VENDOR),
+          ("Version"[], CL_DEVICE_VERSION),
+          ("DriverVersion"[], CL_DRIVER_VERSION)];
+        for (string devinfo, int enum2) <- things {
+          int size;
+          clCheckRes clGetDeviceInfo (dev, enum2, 0, null, &size);
+          scope devstore = new char[] size;
+          clCheckRes clGetDeviceInfo (dev, enum2, size, devstore.ptr, int*:null);
+          writeln "  $k: $devinfo = $devstore ($size)";
+        }
       }
     }
   }
-  auto platform = platforms[0];
+  auto platf = platforms[0];
   int device = 0;
   cl_context_properties[] props;
   props ~= CL_CONTEXT_PLATFORM;
-  props ~= cl_context_properties: platform;
+  props ~= cl_context_properties: platf;
   auto ctx = createContextFromType(props, CL_DEVICE_TYPE_ALL, null);
   onExit clReleaseContext (ctx);
   writeln "Context created. ";
-  auto dev = getDevices(platform)[device];
+  auto dev = getDevices(platf)[device];
   auto queue = clCheckCall!clCreateCommandQueue (ctx, dev, 0);
   writeln "Command queue created. ";
   
   auto rect = vec4f(-2, -2, 2, 2);
-  auto iters = cl_int:512, size = (cl_int:800, cl_int:600), output = new int[size[0]*size[1]];
+  auto iters = cl_int:512, size = (cl_int:800, cl_int:600), output = new int[] (size[0]*size[1]);
   
   auto outvec = clCheckCall!clCreateBuffer (ctx, CL_MEM_WRITE_ONLY,
     (size-of int) * size[0] * size[1], null);
@@ -160,7 +158,7 @@ int main() {
     if auto err = clBuildProgram (prog, 0, null x 4) {
       int len;
       clGetProgramBuildInfo (prog, dev, CL_PROGRAM_BUILD_LOG, 0, null, &len);
-      auto str = new char[len];
+      auto str = new char[] len;
       clGetProgramBuildInfo (prog, dev, CL_PROGRAM_BUILD_LOG, len, str.ptr, null);
       writeln "Failed to build: $str";
       _interrupt 3;
@@ -178,7 +176,7 @@ int main() {
     clCheckRes clSetKernelArg (addKernel, 2, size-of int, void*:&iters);
     clCheckRes clSetKernelArg (addKernel, 3, size-of type-of rect, void*:&rect);
     
-    int[2] workSize = [size[0], size[1]];
+    auto workSize = [size[0], size[1]];
     clCheckRes clEnqueueNDRangeKernel (queue, addKernel, 2, null, workSize.ptr, null, 0, null, null);
     // read-back
     clCheckRes clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, (size-of int) * size[0] * size[1], output.ptr, 0, null, null);
@@ -192,7 +190,7 @@ int main() {
       if ev.type == SDL_KEYDOWN {
         auto sym = (*(SDL_KeyboardEvent*:&ev)).keysym.sym;
         using rect {
-              if (sym == 273) { auto dist = (w - y) * 0.1; y -= dist; w -= dist; }
+          if (sym == 273) { auto dist = (w - y) * 0.1; y -= dist; w -= dist; }
           else if (sym == 274) { auto dist = (w - y) * 0.1; y += dist; w += dist; }
           else if (sym == 275) { auto dist = (z - x) * 0.1; x += dist; z += dist; }
           else if (sym == 276) { auto dist = (z - x) * 0.1; x -= dist; z -= dist; }
@@ -201,7 +199,7 @@ int main() {
           else writeln "Key $(int:sym)";
         }
       }
-      if ev.type == SDL_QUIT return true; // QUIT
+      if ev.type == SDL_QUIT { exit(0); return true; } // QUIT
     }
     return false;
   }

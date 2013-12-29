@@ -1454,7 +1454,8 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       else march = "-mattr=-avx,-avx2 -march=x86 ";
       if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
+      // always -O1 the llc, since it's cheap
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 "~march~cpumode()~"- -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
