@@ -1,0 +1,13 @@
+module test199;
+
+struct A {
+  int a;
+  struct B {
+    int foo() { return a; }
+  }
+}
+
+void main() {
+  A.B b;
+  writeln "$(b.foo())";
+}
