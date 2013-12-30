@@ -1,4 +1,4 @@
-module test199;
+module test199fail;
 
 struct A {
   int a;
