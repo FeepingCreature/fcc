@@ -107,7 +107,9 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   Object res;
   withPropcfg((PropArgs args) {
     Object sup;
-    if (!cont(text, &sup)) return;
+    if (!cont(text, &sup)) {
+      if (!rest(text, "type", &sup)) return;
+    }
     res = getProperties(text, sup, args, cont, rest, rawmode);
   });
   return res;

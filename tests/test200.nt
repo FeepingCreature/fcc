@@ -1,0 +1,13 @@
+module test200;
+
+struct A {
+  alias i = 3;
+}
+
+void main() {
+  A a;
+  int i = a.i;
+  assert(i == 3);
+  int k = A.i;
+  assert(k == 3);
+}
