@@ -17,11 +17,27 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
     void emitLLVM(LLVMFile lf) {
       auto op = lookupOp(Inc?"+":"-"[], ex, mkInt(1));
       Expr cv;
-      if (ex.valueType() == op.valueType()) cv = op;
-      else {
-        cv = tryConvert(op, ex.valueType());
-        if (!cv) throw new Exception(Format("PrePostOpExpr("[], Inc?"+":"-", "[]) failed: cannot reconvert "[], op.valueType(), " to "[], ex.valueType()));
+      void trySetCV(IType it) {
+        if (it == op.valueType()) cv = op;
+        else cv = tryConvert(op, it);
       }
+      trySetCV(ex.valueType());
+      if (!cv) {
+        // try the full thing, mutual compatibility
+        auto ex2 = ex;
+        if (gotImplicitCast(ex2, (Expr ex) {
+          if (!fastcast!(LValue)(ex) && !fastcast!(MValue)(ex)) return false;
+          auto it = ex.valueType();
+          logln(": ", it);
+          trySetCV(it);
+          return cv?true:false;
+        }))
+        {
+          ex = ex2;
+          if (!cv) fail("internal consistency violation");
+        }
+      }
+      if (!cv) throw new Exception(Format("PrePostOpExpr("[], Inc?"+":"-", "[]) failed: cannot reconvert "[], op.valueType(), " to "[], ex.valueType()));
       auto as = mkAssignment(ex, cv);
       static if (Post) {
         ex.emitLLVM(lf);
