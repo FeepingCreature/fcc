@@ -118,35 +118,6 @@ extern(C) bool _exactly_equals(IType a, IType b);
 
 bool exactlyEquals(IType a, IType b) { return _exactly_equals(a, b); }
 
-// casts to types that'd be implicit-converted anyway
-Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  IType dest;
-  if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
-    return null;
-  if (t2.accept(":"[])) return null;
-  dest = forcedConvert(dest);
-  try {
-    if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
-      if (!ex)
-        t2.failparse("Cannot parse cast source");
-      // t2.setError("can't get "[], ex.valueType(), " into "[], dest);
-      t2.setError("types don't match in explicit-cast: ", ex.valueType(), " into ", dest);
-      return null;
-    }
-  } catch (Exception ex) {
-    t2.failparse(ex);
-  }
-  
-  // confirm
-  if (ex.valueType() != dest) return null;
-  
-  text = t2;
-  return fastcast!(Object)~ reinterpret_cast(dest, ex);
-}
-mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default"[], "241801"[]);
-
 // IType parameter is just advisory!
 // Functions may ignore it.
 Expr delegate(Expr, IType)[] converts;
@@ -163,26 +134,39 @@ Expr tryConvert(Expr ex, IType dest) {
   return res;
 }
 
-// casts to types that have conversion defined
-Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  IType dest;
-  if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
-    return null;
-  if (t2.accept(":"[])) return null;
-  dest = forcedConvert(dest);
-  Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) {
-    t2.setError("Unable to parse cast source"[]);
-    return null;
+Expr genCastFor(Expr ex, IType dest, string text) {
+  // implicit-default cast
+  {
+    auto ex2 = ex;
+    try {
+      if (!gotImplicitCast(ex2, dest, (IType it) { return test(it == dest); })) {
+        // text.setError("can't get "[], ex.valueType(), " into "[], dest);
+        text.setError("types don't match in explicit-cast: ", ex.valueType(), " into ", dest);
+      }
+    } catch (Exception ex) {
+      text.failparse(ex);
+    }
+    
+    // confirm
+    if (ex2.valueType() == dest) return reinterpret_cast(dest, ex2);
   }
-  ex = forcedConvert(ex);
-  Expr res = tryConvert(ex, dest);
-  if (res) text = t2;
-  return fastcast!(Object)~ res;
+  // conversion cast
+  {
+    auto ex2 = forcedConvert(ex);
+    if (auto res = tryConvert(ex2, dest)) return res;
+  }
+  // reinterpret cast
+  {
+    IType[] types;
+    auto ex2 = ex;
+    if (!gotImplicitCast(ex2, dest, (IType it) { types ~= it; return it.llvmSize() == dest.llvmSize(); })) {
+      text.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.llvmSize(), ". "[]);
+    } else return reinterpret_cast(dest, ex2);
+  }
+  return null;
 }
-mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert"[], "241802"[]);
 
+// regular form: type:expr
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
@@ -191,18 +175,15 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (t2.accept(":"[])) return null;
   dest = forcedConvert(dest);
-  IType[] types;
   if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) {
     t2.failparse("Failed to get expression"[]);
   }
-  if (!gotImplicitCast(ex, dest, (IType it) { types ~= it; return it.llvmSize() == dest.llvmSize(); })) {
-    t2.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.llvmSize(), ". "[]);
-    return null;
+  if (auto res = fastcast!(Object)(genCastFor(ex, dest, text))) {
+    text = t2;
+    resetError;
+    return res;
   }
-  
-  text = t2;
-  resetError;
-  return fastcast!(Object)~ reinterpret_cast(dest, ex);
+  return null;
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast"[], "2418"[]);
 
