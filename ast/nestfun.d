@@ -168,6 +168,13 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   Expr contextptr = new Register!("ebp");
   
   if (!t2.accept("delegate"[])) {
+    /**
+     * static mode: move closure to the next-outer class/struct context, or
+     * to global level otherwise.
+     * Allows returning delegates from functions without forcing a closure
+     * allocation.
+     * TODO static(n) for "skip n context levels"
+     **/
     bool staticMode;
     if (t2.accept("static")) staticMode = true;
     if (t2.accept("\\") || t2.accept("λ")) {
@@ -176,9 +183,21 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       auto t3 = t2;
       
       if (staticMode) {
+        // count how many __base_ptrs we have to walk
+        int countSkips;
         if (auto sl = context.get!(StructLike)) {
+          Namespace ctx = sc;
+          while (ctx && ctx.get!(StructLike) is sl) {
+            countSkips ++;
+            auto f = ctx.get!(Function);
+            if (f) ctx = f.sup;
+            else ctx = null;
+          }
+          countSkips --;
+          // logln("at ", context, ": countSkips? ", countSkips);
           context = fastcast!(Namespace)(sl);
-        } else { // static in nested function
+        } else { // static in nested function with no struct below
+          countSkips = 1;
           context = context.get!(Function).sup;
           if (fastcast!(Module)(context)) {
             t2.failparse("what even happened there at ", sc);
@@ -188,6 +207,19 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
         contextptr = fastcast!(Expr)(sc.lookup("__base_ptr", true));
         if (!contextptr) {
           t2.failparse("failed to find context pointer");
+        }
+        auto additionalSkips = countSkips - 1;
+        Namespace ctx = sc;
+        for (int k = 0; k < additionalSkips; ++k) {
+          // should never fail - it worked above!
+          ctx = ctx.get!(Function).sup;
+          auto rn = fastcast!(RelNamespace)(ctx);
+          if (!rn) {
+            logln("not a relnamespace?? ", rn, " while processing additional skips ", additionalSkips, " in ", context);
+            fail;
+          }
+          // grab the next deeper base ptr
+          contextptr = fastcast!(Expr)(rn.lookupRel("__base_ptr", contextptr));
         }
       }
       
