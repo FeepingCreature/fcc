@@ -52,6 +52,7 @@ template DoubleLinkedList(T) {
       else head = null;
       return res;
     }
+    void free() { while (head) popHead(); }
   }
 }
 
@@ -95,6 +96,7 @@ template UnrolledDoubleLinkedList(T) {
       backing.head.data.(_0[_2]) = t;
       backing.head.data._2 ++;
     }
+    void free() { backing.free; }
     void pushTail(T t) {
       if (backing.(!hasData || tail.data.(_1 == 0))) {
         T x Length init;

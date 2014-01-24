@@ -21,6 +21,7 @@ class Tuple_ : Type, RelNamespace {
   override {
     bool isTempNamespace() { return false; }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+      if (!base) return null;
       int idx;
       if (readIndexShorthand(str, idx))
         return fastcast!(Object) (lookupOp("index"[], base, mkInt(idx)));
