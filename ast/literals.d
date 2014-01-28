@@ -8,6 +8,15 @@ import ast.static_arrays, parseBase;
 
 Expr delegate(string) mkString; // defined in literal_string
 
+string uhex(uint u) {
+  string res;
+  for (int i = 0; i < 8; ++i) {
+    res = "0123456789abcdef"[u & 0xf] ~ res;
+    u >>= 4;
+  }
+  return res;
+}
+
 class DoubleExpr : Expr, Literal {
   union {
     double d;
@@ -21,7 +30,7 @@ class DoubleExpr : Expr, Literal {
     DoubleExpr dup() { return fastalloc!(DoubleExpr)(d); }
     string toString() { return Format(d); }
     IType valueType() { return Single!(Double); }
-    string getValue() { assert(false); }
+    string getValue() { return "0x" ~ uhex(i[1]) ~ uhex(i[0]); }
     void emitLLVM(LLVMFile lf) {
       push(lf, "0x", toHex(i[1]), toHex(i[0]));
     }

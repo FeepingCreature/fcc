@@ -1,0 +1,12 @@
+module test202;
+
+int a = 5;
+
+double c = 5;
+
+void main() {
+  int b = 5;
+  assert(a == b, "$a != $b");
+  double d = 5;
+  assert(c == d, "$c != $d");
+}
