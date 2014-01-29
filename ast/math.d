@@ -241,21 +241,6 @@ class IntAsShort : Expr {
   }
 }
 
-class ShortAsByte : Expr {
-  Expr ex;
-  this(Expr ex) { this.ex = ex; }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(ex);
-  mixin defaultCollapse!();
-  override {
-    IType valueType() { return Single!(Byte); }
-    void emitLLVM(LLVMFile lf) {
-      load(lf, "trunc i16 ", save(lf, ex), " to i8");
-    }
-  }
-}
-
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
@@ -359,6 +344,8 @@ abstract class BinopExpr : Expr, HasInfo {
   mixin defaultIterate!(e1, e2);
   override {
     string toString() {
+      // auto e1x = .collapse(e1), e2x = .collapse(e2);
+      // return Format("("[], e1, " ["[], e1x, "] "[], op, " "[], e2, " ["[], e2x, "])"[]);
       return Format("("[], e1, " "[], op, " "[], e2, ")"[]);
     }
     string getInfo() { return op; }

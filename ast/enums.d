@@ -28,6 +28,11 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
     return mangle() ~ "_is_defined";
   }
   override {
+    int opEquals(IType it) {
+      if (auto e2 = fastcast!(Enum)(it)) return this is e2;
+      return false;
+    }
+    string toString() { return name; }
     string getIdentifier() { return name; }
     string mangle() { return sup.mangle(null, null)~"_enum_"~name; }
     bool isPointerLess() { return base.isPointerLess(); }
@@ -112,7 +117,13 @@ grabIdentifier:
       t2.failparse("Enum value of "[], backupval.valueType(), " did not match "[],
                     base);
   } else {
-    val = collapse(lookupOp("+"[], val, one));
+    auto nval = collapse(lookupOp("+"[], val, one));
+    auto vvt = val.valueType();
+    if (gotImplicitCast(nval, vvt, (IType it) { return test(it == vvt); }))
+      val = nval;
+    else {
+      t2.failparse("Enum basetype does not have successor at this point (", nval, " does not reduce to ", vvt, ")");
+    }
   }
   en.addEntry(idname, val);
   if (t2.accept(","[])) goto grabIdentifier;
