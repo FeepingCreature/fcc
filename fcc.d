@@ -450,7 +450,8 @@ void ast_math_constr() {
     });
   }
   addCIntrin(1, "sqrtf" , Single!(Float), "llvm.sqrt.f32");
-  addCIntrin(1, "sqrt"  , Single!(Double), "llvm.sqrt.f64");
+  // TODO figure out why this does not work at all
+  // addCIntrin(1, "sqrt"  , Single!(Double), "llvm.sqrt.f64");
   // do in software, intrinsic is slow
   // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
   // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
@@ -1088,7 +1089,7 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
     }
   }
   
-  if (!lf.debugmode || releaseMode) return;
+  if (!lf.debugmode/* || releaseMode*/) return;
   auto frameinfo = fastcast!(LValue)(namespace().lookup("__frameinfo", true));
   auto fname = namespace().get!(Function).name;
   if (frameinfo) {
