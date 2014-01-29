@@ -12,14 +12,27 @@ pragma(lib, "SDL");
 class Surface {
   SDL_Surface* back;
   RefCounted rc;
-  void free() { SDL_FreeSurface back; }
-  alias release = rc.release();
-  alias claim = rc.claim();
+  void freeSurface() {
+    // writeln "causing free ($(back.(w, h)))";
+    SDL_FreeSurface back;
+    free;
+  }
+  void release() { 
+    // writeln "release from $(rc.refs)";
+    rc.release();
+  }
+  void claim() {
+    // writeln "claim to $(rc.refs + 1)";
+    rc.claim();
+    if (rc.refs == 1024) {
+      fail "1024 refs reached! probably Surface ref leak!! ";
+    }
+  }
   alias w = back.w;
   alias h = back.h;
   void flip() SDL_Flip back;
   void init() {
-    rc.onZero = &free;
+    rc.onZero = &freeSurface;
   }
   void init(SDL_Surface* surf) {
     back = surf;

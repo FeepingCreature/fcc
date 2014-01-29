@@ -15,6 +15,7 @@ template hashptr_fnv(PTR) {
     alias t = *ptr;
     alias T = type-of t;
     alias s = *sp;
+    int i;
     
     static if (types-equal (T, int)) {
       mixin FNVStep.replace("%V", "size_t:t");
@@ -32,10 +33,22 @@ template hashptr_fnv(PTR) {
       return;
       bool matched;
     }
+    static if (!is-defined matched && (type-is array T || type-is static-array T)) {
+      for i <- 0..t.length {
+        auto p = &t[i];
+        .hashptr_fnv!type-of p (p, sp);
+      }
+      return;
+      bool matched;
+    }
     static if (!is-defined matched && type-is struct T) {
-      static for (int i <- 0..t.tupleof.length) {
-        alias entry = t.tupleof[i];
-        .hashptr_fnv!type-of &entry (&entry, sp);
+      static if (t.(is-defined local hashinfo)) {
+        .hashptr_fnv!type-of &ptr.hashinfo (&ptr.hashinfo, sp);
+      } else {
+        static for (int i <- 0..t.tupleof.length) {
+          alias entry = t.tupleof[i];
+          .hashptr_fnv!type-of &entry (&entry, sp);
+        }
       }
       return;
       bool matched;
@@ -50,6 +63,11 @@ template hashptr_fnv(PTR) {
       }
       for size_t v <- size_t[]:str mixin FNVStep.replace("%V", "v");
       mixin FNVStep.replace("%V", "last");
+      return;
+      bool matched;
+    }
+    static if (!is-defined matched && implicitly-converts-to int t) {
+      mixin FNVStep.replace("%V", "size_t:t");
       return;
       bool matched;
     }
@@ -76,8 +94,16 @@ template hashptr(PTR) {
 template eq(T) {
   bool eq(T* ap, bp) {
     alias a = *ap, b = *bp;
+    static if (!is-defined matched && a.(is-defined local eqinfo)) {
+      return a.eqinfo == b.eqinfo;
+      bool matched;
+    }
     static if (!is-defined matched && (type-is interface T || type-is class T)) {
       return a is b;
+      bool matched;
+    }
+    static if (!is-defined matched && size-of T > 16) {
+      return memcmp(ap, bp, size-of T) == 0;
       bool matched;
     }
     static if (!is-defined matched) {
