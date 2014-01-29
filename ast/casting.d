@@ -459,10 +459,15 @@ class ShortToIntCast_ : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(sh);
   Expr collapse() {
-    if (auto bsc = fastcast!(ByteToShortCast) (sh)) {
+    auto sh2 = .collapse(sh);
+    if (auto ilas = fastcast!(IntLiteralAsShort) (sh2)) {
+      return mkInt(cast(short) ilas.ie.num);
+    }
+    if (auto bsc = fastcast!(ByteToShortCast) (sh2)) {
       return new ByteToIntCast (bsc.b);
     }
-    return this;
+    if (sh is sh2) return this;
+    return fastalloc!(ShortToIntCast)(sh2);
   }
   override {
     IType valueType() { return Single!(SysInt); }
@@ -499,6 +504,22 @@ final class UShortToIntCast : UShortToIntCast_ {
   this(Expr ush) { super(ush); }
 }
 
+class ShortAsByte : Expr {
+  Expr ex;
+  this(Expr ex) { this.ex = ex; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
+  override {
+    string toString() { return qformat("byte:", ex); }
+    IType valueType() { return Single!(Byte); }
+    void emitLLVM(LLVMFile lf) {
+      load(lf, "trunc i16 ", save(lf, ex), " to i8");
+    }
+  }
+}
+
 class ByteToShortCast : Expr {
   Expr b;
   bool signed;
@@ -516,8 +537,14 @@ class ByteToShortCast : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(b);
-  mixin defaultCollapse!();
   override {
+    Expr collapse() {
+      // short: byte:short:5 -> short:(byte)5
+      if (auto sab = fastcast!(ShortAsByte)(.collapse(b)))
+        if (auto ilas = fastcast!(IntLiteralAsShort)(.collapse(sab.ex)))
+          return fastalloc!(IntLiteralAsShort)(mkInt(cast(byte) ilas.ie.num));
+      return this;
+    }
     string toString() { return Format("short:"[], b); }
     IType valueType() { return Single!(Short); }
     void emitLLVM(LLVMFile lf) {
@@ -545,6 +572,9 @@ class ByteToIntCast : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(b);
   Expr collapse() {
+    if (auto ilab = fastcast!(IntLiteralAsByte)(.collapse(b))) {
+      return ilab.ie;
+    }
     if (auto rce = fastcast!(RCE)(.collapse(b))) {
       if (auto ilab = fastcast!(IntLiteralAsByte)(.collapse(rce.from))) {
         return ilab.ie;
