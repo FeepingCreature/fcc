@@ -1,6 +1,6 @@
 module ast.type_info;
 
-import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure, ast.pointer, ast.iterator_ext;
+import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure, ast.pointer, ast.iterator_ext, ast.static_arrays;
 
 // Most of those must come before tree.expr.named
 // due to dash-parsing rules!
@@ -181,6 +181,7 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
   string mode;
   if (t2.accept("tuple")) mode = "tuple";
   if (t2.accept("array")) mode = "array";
+  if (t2.accept("static-array")) mode = "static-array";
   if (t2.accept("class")) mode = "class";
   if (t2.accept("interface")) mode = "interface";
   if (t2.accept("function")) mode = "function";
@@ -200,6 +201,7 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
   switch (mode) {
     case "tuple": res = !!fastcast!(ast.tuples.Tuple) (ty); break;
     case "array": res = !!fastcast!(Array) (ty) || !!fastcast!(ExtArray) (ty); break;
+    case "static-array": res = !!fastcast!(StaticArray) (ty); break;
     case "class": res = !!fastcast!(ClassRef) (ty); break;
     case "interface": res = !!fastcast!(IntfRef) (ty); break;
     case "function": res = !!fastcast!(FunctionPointer) (ty); break;
