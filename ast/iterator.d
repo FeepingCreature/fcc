@@ -141,6 +141,9 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept(".."[])) return null;
   if (!rest(t2, "tree.expr ,tree.expr.bin", &to))
     t2.failparse("Unable to acquire second ha(lf) of range def"[]);
+  if (auto ce = fastcast!(CondExpr)(to)) if (fastcast!(AndOp)(ce.cd) || fastcast!(OrOp)(ce.cd)) {
+    t2.failparse("range definition parsed as boolean op. Did you do int <- 0..5 && int <- 0..10? This won't do what you want; please add brackets like \"(int <- 0..5) &&\".");
+  }
   text = t2;
   bool notATuple(IType it) { return !fastcast!(Tuple) (it); }
   bool isByte(IType it) { return !!fastcast!(Byte) (it); }

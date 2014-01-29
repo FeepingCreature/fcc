@@ -102,14 +102,17 @@ void main(string[] args) {
   int x 3 gears;
   float angle = 0;
   void draw() using mode GL {
+    ClearColor (0, 0, 0, 0);
+    ClearDepth 1;
     Clear $ COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT;
     using Matrix {
       Rotatef (view_rot.x, vec3f.X);
       Rotatef (view_rot.y, vec3f.Y);
       Rotatef (view_rot.z, vec3f.Z);
-      for int i <- 0..3 &&
-      auto t <- [vec3f(-3, -2, 0), vec3f(3.1, -2, 0), vec3f(-3.1, 4.2, 0)] &&
-      auto rot <- [angle, -2 * angle - 9, -2 * angle - 25] {
+      for (int i <- 0..3) &&
+        auto t <- [vec3f(-3, -2, 0), vec3f(3.1, -2, 0), vec3f(-3.1, 4.2, 0)] &&
+        auto rot <- [angle, -2 * angle - 9, -2 * angle - 25]
+      {
         using Matrix {
           Translatef t;
           Rotatef (rot, vec3f.Z);
@@ -156,7 +159,7 @@ void main(string[] args) {
     Enable LIGHT0;
     Enable DEPTH_TEST;
     
-    for int id <- 0..3 &&
+    for (int id <- 0..3) &&
     auto tup <- [(1f, 4f, 1f, 20), (.5f, 2f, 2f, 10), (1.3f, 2f, 0.5f, 10)] &&
     auto color <- [&red, &green, &blue] {
       gears[id] = GenLists(1);

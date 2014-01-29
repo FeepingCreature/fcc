@@ -1,0 +1,7 @@
+module test203;
+
+void main() {
+  int test;
+  for int i <- 0..3 && int k <- 0..3 { test = i; }
+  assert(test == 2, "bad - $test");
+}
