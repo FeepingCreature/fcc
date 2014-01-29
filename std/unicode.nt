@@ -55,6 +55,12 @@ class UTF8Decoder : Iterator!int {
   }
 }
 
+string atIndex(string s, int i) {
+  for int k <- ints && string sub <- scope = new UTF8Iterator s
+    if k == i return sub;
+  raise new Error "No such index in string";
+}
+
 string encode(int codepoint) {
   alias cp = codepoint;
   char[auto~] res;
