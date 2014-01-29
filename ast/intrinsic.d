@@ -1032,9 +1032,12 @@ void setupSysmods() {
       void init(string s) super.init "AssertError: $s";
     }
     void assert(bool cond, string mesg = string:null) {
-      if (!cond)
-        if (mesg) raise new AssertError mesg;
-        else raise new AssertError "Assertion failed! ";
+      static if (__release_mode) { }
+      else {
+        if (!cond)
+          if (mesg) raise new AssertError mesg;
+          else raise new AssertError "Assertion failed! ";
+      }
     }
     class FailError : UnrecoverableError {
       void init() super.init "Something went wrong. ";
@@ -1115,6 +1118,12 @@ void setupSysmods() {
   auto sysmodmod = fastcast!(Module) (parse(src, "tree.module"));
   if (isWindoze())
     sysmodmod._add("_fs0", fastalloc!(FS0)());
+  
+  if (releaseMode)
+    sysmodmod._add("__release_mode", sysmod.lookup("true"));
+  else
+    sysmodmod._add("__release_mode", sysmod.lookup("false"));
+  
   sysmodmod.splitIntoSections = true;
   sysmod = sysmodmod;
 }
