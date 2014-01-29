@@ -124,18 +124,18 @@ class Area {
   alias x1 = rect[1].x;
   alias y1 = rect[1].y;
   alias w = x1 - x0, h = y1 - y0;
-  void free() surf.free;
+  void free() { surf.release; super.free; } // !! NOT surf.free! let the ref counting clean up!
   void release() surf.release;
   void claim() surf.claim;
   void init(Surface s) {
     surf = s;
+    s.claim;
     rect[0] = vec2i(0, 0);
     rect[1] = vec2i(surf.w, surf.h);
   }
   Area copy() {
     auto res = new Area surf;
     res.rect = rect;
-    res.surf = surf;
     return res;
   }
   Area add(int x, int y) {
@@ -512,7 +512,6 @@ Area screen13(int w, h, bool fullscreen = false, bool surface = false,
     }
   }
   using new Area surf {
-    claim;
     if surface return that;
     else display = that;
   }
@@ -584,7 +583,6 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   if !surf raise new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
   
   using new Area new Surface surf {
-    claim;
     if surface return that;
     else display = that;
   }

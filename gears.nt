@@ -124,8 +124,8 @@ void main(string[] args) {
     }
   }
   void animate() angle = 100 * float:glfwGetTime();
-  void key(GLFWwindow window, int k, int action) {
-    if (action != GLFW_PRESS) return;
+  void key(GLFWwindow* window, int k, scancode, action, mods) {
+    if (action != GLFW_PRESS && action != GLFW_REPEAT) return;
     using prefix GLFW_KEY_ switch int i over i == k {
       case ESCAPE: running = 0;
       case UP: view_rot.x += 5;
@@ -134,11 +134,11 @@ void main(string[] args) {
       case RIGHT: view_rot.y -= 5;
     }
   }
-  void handleChar(GLFWwindow window, int k) {
+  void handleChar(GLFWwindow* window, int k) {
     if (k == "z") view_rot.z += 5;
     if (k == "Z") view_rot.z -= 5;
   }
-  void reshape(GLFWwindow window, int width, height) using mode GL {
+  void reshape(GLFWwindow* window, int width, height) using mode GL {
     auto ratio = float:height / width;
     float znear = 5, zfar = 30, xmax = znear * 0.5;
     Viewport(0, 0, width, height);
@@ -186,15 +186,18 @@ void main(string[] args) {
     if (!Init()) raise new Error "Failed to init GLFW";
     onExit Terminate;
     
+    SetErrorCallback &HandleError;
+    
     WindowHint(DEPTH_BITS, 16);
-    auto wnd = CreateWindow (300, 300, WINDOWED, "Gears", null);
+    auto wnd = CreateWindow (300, 300, "Gears", null, null);
     if (!wnd) raise new Error "Failed to open GLFW window";
     MakeContextCurrent wnd;
     SwapInterval 1;
     GetWindowSize(wnd, &int width, &int height);
     reshape(wnd, width, height);
     
-    wnd.SetInputMode (KEY_REPEAT, true);
+    // lolwat
+    // wnd.SetInputMode (KEY_REPEAT, true);
     SwapInterval 1;
     
     init();
@@ -202,7 +205,7 @@ void main(string[] args) {
     windowSizeCallback = &reshape;
     keyCallback = &key;
     charCallback = &handleChar;
-    initCallbacks();
+    initCallbacks(wnd);
     
     while running {
       draw;

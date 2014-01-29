@@ -1,15 +1,10 @@
 module std.lib.glfw3;
 
-public import c.GL.glfw3;
+public import c.GLFW.glfw3;
 
 import std.lib.opengl; // enforce library ordering
 
-platform(*-mingw32) {
-  pragma(lib, "glfw3");
-}
-platform(!*-mingw32) {
-  pragma(lib, "glfw");
-}
+pragma(pkg-config, "glfw3");
 
 defmode GLFW "prefix GLFW_ prefix glfw";
 
@@ -20,10 +15,10 @@ static if (types-equal weak (GLFWwindow, void)) {
 }
 
 void delegate(GLFWWinType, int, int) windowSizeCallback;
-void delegate(GLFWWinType, int, int) keyCallback;
+void delegate(GLFWWinType, int key, scancode, action, mods) keyCallback;
 void delegate(GLFWWinType, int) charCallback;
 void delegate(GLFWWinType, int, int) cursorPosCallback;
-void delegate(GLFWWinType, int, int) mouseButtonCallback;
+void delegate(GLFWWinType, int button, action, mods) mouseButtonCallback;
 void delegate(GLFWWinType, double, double) scrollCallback;
 void delegate(GLFWWinType) windowCloseCallback;
 
@@ -32,9 +27,9 @@ extern(C) {
     auto _threadlocal = getThreadlocal;
     windowSizeCallback?(wnd, w, h);
   }
-  void KeyCallback(GLFWWinType wnd, int k, action) {
+  void KeyCallback(GLFWWinType wnd, int k, scancode, action, mods) {
     auto _threadlocal = getThreadlocal;
-    keyCallback?(wnd, k, action);
+    keyCallback?(wnd, k, scancode, action, mods);
   }
   void CharCallback(GLFWWinType wnd, int k) {
     auto _threadlocal = getThreadlocal;
@@ -44,9 +39,9 @@ extern(C) {
     auto _threadlocal = getThreadlocal;
     cursorPosCallback?(wnd, int:x, int:y);
   }
-  void MouseButtonCallback(GLFWWinType wnd, int a, b) {
+  void MouseButtonCallback(GLFWWinType wnd, int button, action, mods) {
     auto _threadlocal = getThreadlocal;
-    mouseButtonCallback?(wnd, a, b);
+    mouseButtonCallback?(wnd, button, action, mods);
   }
   void ScrollCallback(GLFWWinType wnd, double x, y) {
     auto _threadlocal = getThreadlocal;
@@ -55,6 +50,11 @@ extern(C) {
   void WindowCloseCallback(GLFWWinType wnd) {
     auto _threadlocal = getThreadlocal;
     return windowCloseCallback?(wnd);
+  }
+  void HandleError(int code, char* description) {
+    auto _threadlocal = getThreadlocal;
+    import std.string;
+    raise new GLFWError "$code: $((CToString description).dup)";
   }
 }
 
@@ -87,7 +87,7 @@ class GLFWWindow : GLWindow {
   GLFWWinType handle;
   int w, h;
   vec2i size() { return vec2i(w, h); }
-  void key(GLFWWinType window, int k, int action) {
+  void key(GLFWWinType window, int k, scancode, action, mods) {
     if (window != handle) raise new Error "Called key() with $(window) but handle is $(handle)";
     // writeln "$k with $action";
     void set(Key code) {
@@ -122,13 +122,13 @@ class GLFWWindow : GLWindow {
       case PAGE_UP: set PageUp;
       case DELETE : set Delete;
       case END    : set End;
-      case PAGE_DOWN: set PageDown;
-      case BACKSPACE: set Backspace;
-      case LSHIFT   : set LeftShift;
-      case RSHIFT   : set RightShift;
-      case LCTRL    : set LeftControl;
-      case RCTRL    : set RightControl;
-      case ESC  : set Escape;
+      case PAGE_DOWN   : set PageDown;
+      case BACKSPACE   : set Backspace;
+      case LEFT_SHIFT  : set LeftShift;
+      case RIGHT_SHIFT : set RightShift;
+      case LEFT_CONTROL: set LeftControl;
+      case RIGHT_CONTROL:set RightControl;
+      case ESCAPE:set Escape;
       case PAUSE: set Pause;
       case GLFW_KEY_F1..GLFW_KEY_F12: set Key:(Key.F1 + k - GLFW_KEY_F1);
     }
@@ -150,7 +150,7 @@ class GLFWWindow : GLWindow {
     if (window != handle) raise new Error "Called mousepos() with $(window) but handle is $(handle)";
     mouse-pos = vec2i(x, y);
   }
-  void mousebutton(GLFWWinType window, int button, action) {
+  void mousebutton(GLFWWinType window, int button, action, mods) {
     if (window != handle) raise new Error "Called mousebutton() with $(window) but handle is $(handle)";
     if (action) buttons[button].(clicked, pressed) = (true, true);
     else buttons[button].(released, pressed) = (true, false);
@@ -171,6 +171,8 @@ class GLFWWindow : GLWindow {
     if (!Init()) raise new GLFWError "Failed to init GLFW";
     onFailure Terminate;
     
+    SetErrorCallback &HandleError;
+    
     WindowHint(DEPTH_BITS, 16);
     WindowHint(STENCIL_BITS, 8);
     WindowHint(OPENGL_DEBUG_CONTEXT, debugflag);
@@ -188,7 +190,7 @@ class GLFWWindow : GLWindow {
     
     import std.string;
     handle = CreateWindow (w, h, toStringz title, null, null);
-    if (!handle) raise new GLFWError "Failed to open GLFW window";
+    if (!handle) raise new GLFWError "Failed to open GLFW window with $size";
     MakeContextCurrent handle;
     
     initCallbacks handle;
@@ -234,12 +236,12 @@ class GLFWWindow : GLWindow {
   vec2i prev-pos;
   void claim-cursor() using mode GLFW {
     prev-pos = mouse-pos;
-    handle.SetInputMode(CURSOR_MODE, CURSOR_CAPTURED);
+    handle.SetInputMode(CURSOR, CURSOR_DISABLED); // replaces CAPTURED
     warp $ size() / 2;
     claimed = true;
   }
   void release-cursor() using mode GLFW {
-    handle.SetInputMode(CURSOR_MODE, CURSOR_NORMAL);
+    handle.SetInputMode(CURSOR, CURSOR_NORMAL);
     warp $ prev-pos;
     claimed = false;
   }
