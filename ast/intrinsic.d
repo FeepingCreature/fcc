@@ -887,6 +887,7 @@ void setupSysmods() {
       int system(char*);
       void exit(int);
     }
+    RenameIdentifier system C_system; // prevent collision with std.process
     void gdb-print-backtrace() {
       platform(default) {
         auto pid = getpid();
@@ -894,9 +895,9 @@ void setupSysmods() {
         auto size = snprintf(null, 0, text, pid);
         auto ptr = malloc(size+1);
         snprintf(ptr, size+1, text, pid);
-        system(ptr);
-        // system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
-        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
+        C_system(ptr);
+        // C_system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
+        // C_system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
       }
     }
     shared string executable;

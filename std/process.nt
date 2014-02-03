@@ -7,8 +7,14 @@ import std.string, std.util, std.file;
 
 alias C_system = system;
 
-int system(string cmd) {
-  return C_system toStringz cmd;
+struct ShellErrorCode {
+  int value;
+  alias implicit-cast = value;
+  alias implicit-cast-2 = value == 0; // Shell error code 0 is "no error"
+}
+
+ShellErrorCode system(string cmd) {
+  return ShellErrorCode: C_system toStringz cmd;
 }
 
 int WEXITSTATUS(int status) { return (status & 0xff00) >> 8; }
