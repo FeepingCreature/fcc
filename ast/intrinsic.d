@@ -275,6 +275,9 @@ void setupSysmods() {
     alias vec2l = vec(long, 2);
     alias vec3l = vec(long, 3);
     alias vec4l = vec(long, 4);
+    alias vec2ub = vec(ubyte, 2);
+    alias vec3ub = vec(ubyte, 3);
+    alias vec4ub = vec(ubyte, 4);
     extern(C) int fgetc(void*);
     extern(C) int fflush(void*);
     platform(!*-mingw*) {
