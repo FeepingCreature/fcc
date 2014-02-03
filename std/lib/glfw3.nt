@@ -200,7 +200,7 @@ class GLFWWindow : GLWindow {
     glGetIntegerv(GL_DEPTH_BITS, &int depth);
     if (depth < 16) raise new GLFWError "Unable to create GLFW window with 16 depth buffer bits: only got $depth";
     
-    handle.SetInputMode (REPEAT, true);
+    // handle.SetInputMode (REPEAT, true);
     // SwapInterval 0;
     
     is-set-up = true;
