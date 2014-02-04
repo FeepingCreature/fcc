@@ -560,7 +560,7 @@ void splitstore(LLVMFile lf, string fromtype, string from, string totype, string
   if (!isStruct) {
     if (addrspace1) {
       string addrspacecast = "bitcast ";
-      if (llvmver() == 35) addrspacecast = "addrspacecast ";
+      if (llvmver() >= 34) addrspacecast = "addrspacecast ";
       to = save(lf, addrspacecast, totype, "* ", to, " to ", totype, " addrspace(1)*");
       put(lf, "store ", fromtype, " ", from, ", ", totype, " addrspace(1)* ", to);
     } else {
