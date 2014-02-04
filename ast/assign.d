@@ -45,7 +45,7 @@ class _Assignment(T) : LineNumberedStatementClass {
         if (true) {
           splitstore(lf, typeToLLVM(value.valueType()), src, basetype, dest, true);
           // string addrspacecast = "bitcast ";
-          // if (llvmver() == 35) addrspacecast = "addrspacecast ";
+          // if (llvmver() >= 34) addrspacecast = "addrspacecast ";
           // dest = save(lf, addrspacecast, basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
           // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)* ", dest);
         } else {

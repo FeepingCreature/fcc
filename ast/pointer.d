@@ -121,7 +121,7 @@ class DerefExpr_ : LValue, HasInfo {
       if (true) {
         auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
         string addrspacecast = "bitcast ";
-        if (llvmver() == 35) addrspacecast = "addrspacecast ";
+        if (llvmver() >= 34) addrspacecast = "addrspacecast ";
         auto c = save(lf, src);
              c = save(lf, addrspacecast, ptrtype, " ", c, " to ", fixedtype);
         load(lf, "load ", fixedtype, " ", c);
