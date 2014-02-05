@@ -1,0 +1,8 @@
+module test204;
+
+void main() {
+  auto tup = (i => 5, k => 6);
+  tup.i = tup.i + 1;
+  using tup { i = i + 1; }
+  assert(tup.i == 7);
+}

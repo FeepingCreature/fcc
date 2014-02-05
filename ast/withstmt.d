@@ -95,7 +95,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     } else if (ex.valueType() == Single!(Void)) {
       context = ex; // hackaround :)
     } else {
-      auto var = fastalloc!(Variable)(ex.valueType(), framelength(), cast(string) null);;
+      auto var = fastalloc!(Variable)(ex.valueType(), framelength(), cast(string) null);
       temps ++;
       context = var;
       sc.addStatement(fastalloc!(VarDecl)(var, ex));
@@ -257,7 +257,10 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   IType it;
   string t3;
+  bool isSyntaxTuple;
   if (rest(t2, "type", &it) && fastcast!(Enum) (it)) {
+  } else if (rest(t2, "tree.expr.tuple", &ex)) {
+    isSyntaxTuple = true;
   } else if (rest(t2, "tree.expr _tree.expr.bin", &ex) &&
     (t3 = t2, true) && t3.accept("{")) {
   } else {
@@ -284,8 +287,8 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     newval = isc.getAssign();
     scoped = true;
   }
-  auto list = getTupleEntries(ex);
-  if (list && !scoped /* scoped is not split */) {
+  if (isSyntaxTuple && !scoped /* scoped is not split */) {
+    auto list = getTupleEntries(ex);
     Expr[] list2;
     if (newval) {
       list2 = getTupleEntries(newval);
