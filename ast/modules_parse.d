@@ -101,9 +101,10 @@ Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) 
     (*cap.getImportsPtr(type)) ~= newmod;
   }
   foreach (str; newImports) {
-    Module newmod;
-    try newmod = lookupMod(str);
-    catch (Exception ex) original_text.failparse(ex);
+    // Module newmod;
+    // try newmod = lookupMod(str);
+    // catch (Exception ex) original_text.failparse(ex);
+    Module newmod = lookupMod(str);
     if (!newmod)
       original_text.failparse("Could not find module "[], str);
     if (pub) process(cap, ImportType.Public, newmod);
