@@ -257,10 +257,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   IType it;
   string t3;
-  bool isSyntaxTuple;
   if (rest(t2, "type", &it) && fastcast!(Enum) (it)) {
-  } else if (rest(t2, "tree.expr.tuple", &ex)) {
-    isSyntaxTuple = true;
   } else if (rest(t2, "tree.expr _tree.expr.bin", &ex) &&
     (t3 = t2, true) && t3.accept("{")) {
   } else {
@@ -287,36 +284,14 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     newval = isc.getAssign();
     scoped = true;
   }
-  if (isSyntaxTuple && !scoped /* scoped is not split */) {
-    auto list = getTupleEntries(ex);
-    Expr[] list2;
-    if (newval) {
-      list2 = getTupleEntries(newval);
-      if (list2.length != list.length) t2.failparse("Bad assignment list for tuple-with");
-    }
-    foreach (i, entry; list) {
-      if (scoped) {
-        Expr e2;
-        if (list2) e2 = list2[i];
-        entry = genScoped(entry, e2);
-      }
-      
-      auto prev = ws;
-      try ws = fastalloc!(WithStmt)(entry);
-      catch (Exception ex) t2.failparse(ex);
-      ws.sc.configPosition(t2);
-      if (!outer) outer = ws;
-      namespace.set(ws.sc);
-      if (prev) prev.sc.addStatement(ws);
-    }
-  } else {
-    if (scoped) ex = genScoped(ex, newval);
-    try ws = fastalloc!(WithStmt)(ex);
-    catch (Exception ex) t2.failparse(ex);
-    ws.sc.configPosition(t2);
-    outer = ws;
-    namespace.set(ws.sc);
-  }
+  
+  if (scoped) ex = genScoped(ex, newval);
+  try ws = fastalloc!(WithStmt)(ex);
+  catch (Exception ex) t2.failparse(ex);
+  ws.sc.configPosition(t2);
+  outer = ws;
+  namespace.set(ws.sc);
+  
   Statement st;
   if (!rest(t2, "tree.stmt"[], &st))
     t2.failparse("Couldn't match with-body");
