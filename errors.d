@@ -142,6 +142,11 @@ class ParseEx : Exception {
     
     res ~= Format(info._2, ":"[], info._0, ":"[], info._1, ": "[], msg);
     if (rules) res ~= Format(" "[], rules);
+    if (emulateGCCOutput) {
+      res = res.replace("\n", " "); // :(
+      // there's probably a way elegant regex way but I cba
+      while (res.find("  ") != -1) { res = res.replace("  ", " "); }
+    }
     return res;
   } 
 }

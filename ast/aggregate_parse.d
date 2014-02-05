@@ -44,6 +44,10 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
           t3.failparse("unknown statement: identifier '", tryId, "' appears in ", hint);
         }
       }
+      t2 = t3;
+      if (t2.accept(";")) {
+        t3.failparse("semicolon found where no semicolon was expected");
+      }
       t3.failparse("unknown statement");
     }
     text = t2;
