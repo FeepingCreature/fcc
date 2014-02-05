@@ -115,6 +115,8 @@ string reverseLookupPos(int row, int col, string file) {
   }
 }
 
+bool emulateGCCOutput = false; // for use in IDE plugins that expect "file:line:column errortext"
+
 class ParseEx : Exception {
   string pos;
   string[] rules;
@@ -130,7 +132,7 @@ class ParseEx : Exception {
       info._2 = "@`"~pos.nextText()~"`";
     }
     string res;
-    if (info._3) {
+    if (info._3 && !emulateGCCOutput) {
       auto prefix = "At line: ";
       res = Format("\n"[], prefix, info._3, "\n"[]);
       for (int i = 0; i < prefix.length + info._1; ++i)

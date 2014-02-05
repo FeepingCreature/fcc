@@ -8,6 +8,7 @@ public import casts, alloc, quickformat;
 
 import tools.base: fail, find, Format, New, This_fn, rmSpace, Stuple, slice, endsWith;
 import tools.ctfe: ctReplace;
+import std.c.stdio;
 
 const string EXT = ".nt";
 
@@ -659,7 +660,7 @@ extern(C) {
 
 string prevLogLine;
 
-template logSmart(bool Mode) {
+template logSmart(bool Mode, bool Stderr = false) {
   void logSmart(T...)(T t) {
     auto pretext = Format(t);
     string text;
@@ -682,9 +683,16 @@ template logSmart(bool Mode) {
     string empty;
     for (int i = 0; i < col - 1; ++i) empty ~= " ";
     tools.log.log("\r"[], empty, "\r"[]);
-    tools.log.log(text);
-    if (Mode) tools.log.log("\r"[]);
-    else tools.log.log("\n"[]);
+    
+    static if (Stderr) {
+      static assert(!Mode);
+      fprintf(stderr, "%s\n", toStringz(text));
+    } else {
+      tools.log.log(text);
+      
+      if (Mode) tools.log.log("\r"[]);
+      else tools.log.log("\n"[]);
+    }
     fflush(stdin);
   }
 }

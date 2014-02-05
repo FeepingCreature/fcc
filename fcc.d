@@ -1459,7 +1459,9 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 -ffunction-sections -fdata-sections "~march~cpumode()~"- -filetype=obj -o ", objname);
     }
     
-    logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
+    if (!emulateGCCOutput) {
+      logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
+    }
     if (auto res = bashsystem(cmdline)) {
       logln("ERROR: Compilation failed with ", res, " ", getErrno());
       exit(1);
@@ -1579,7 +1581,9 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     // -mattr=-avx,-sse41 
     auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
     fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2 "~llc_cmd~"-filetype=obj -o "~objfile;
-    logSmart!(false)("> ", fullcommand);
+    if (!emulateGCCOutput) {
+      logSmart!(false)("> ", fullcommand);
+    }
     if (bashsystem(fullcommand))
       throw new Exception("link failed");
   }
@@ -1593,7 +1597,9 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
   string linkflags = mode~"-Wl,--gc-sections "~locallibfolder~"-L/usr/local/lib";
   string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" "~objfile~" ";
   foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
-  logSmart!(false)("> ", cmdline);
+  if (!emulateGCCOutput) {
+    logSmart!(false)("> ", cmdline);
+  }
   if (system(cmdline.toStringz()))
     throw new Exception("Failed to link");
 }
@@ -1681,7 +1687,7 @@ int incbuild(string start,
     string[] objs = start.compileWithDepends(cs);
     objs.link(cs.optimize, cs.debugMode || cs.debugModeDwarf, true);
   } catch (Exception ex) {
-    logSmart!(false) (ex);
+    logSmart!(false, true /* stderr */) (ex);
     return 1;
   }
   if (runMe) {
@@ -1827,6 +1833,11 @@ int main2(string[] args) {
       allowProgbar = false;
       continue;
     }
+    if (arg == "-gccmode") {
+      emulateGCCOutput = true;
+      allowProgbar = false;
+      continue;
+    }
     if (arg == "-run") {
       runMe = true;
       continue;
@@ -1898,7 +1909,9 @@ int main2(string[] args) {
     if (!mainfile) mainfile = sourcefile;
     if (!incremental) {
       try objects ~= sourcefile.compileWithDepends(cs);
-      catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
+      catch (Exception ex) {
+        logSmart!(false, true /* stderr */) (ex.toString()); return 1;
+      }
     }
   }
   if (!output) output = "exec";
