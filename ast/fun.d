@@ -295,6 +295,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.weak = weak;
     res.noreturn = noreturn;
     res.extern_c = extern_c;
+    res.reassign = reassign;
     res.tree = tree;
     res.coarseSrc = coarseSrc;
     res.llvmFrameTypes = llvmFrameTypes;

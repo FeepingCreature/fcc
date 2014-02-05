@@ -1,6 +1,6 @@
 module ast.expr_statement;
 
-import ast.base, ast.parse, ast.fold, ast.fun, ast.assign, ast.scopes, ast.vardecl, ast.namespace;
+import ast.base, ast.parse, ast.fold, ast.fun, ast.assign, ast.scopes, ast.vardecl, ast.namespace, ast.structfuns;
 
 import ast.dg;
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
@@ -10,13 +10,19 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   opt(ex);
   auto fc = fastcast!(FunCall) (ex);
   if (fc && fc.fun.reassign) {
-    auto args = fc.getParams();
-    auto lv = fastcast!(LValue) (args[0]), mv = fastcast!(MValue) (args[0]);
+    Expr firstArg;
+    if (auto rfc = fastcast!(RelFunCall)(fc)) firstArg = rfc.baseptr;
+    else {
+      auto args = fc.getParams();
+      if (!args) text.failparse("cannot reassign call on function that does not have any parameters");
+      firstArg = args[0];
+    }
+    auto lv = fastcast!(LValue) (firstArg), mv = fastcast!(MValue) (firstArg);
     if (!lv && !mv) {
       text.failparse("cannot call reassigning function "[], fc.fun.name, " on non-lvalue/mvalue "[], lv?fastcast!(Expr) (lv):mv);
     }
     // logln("expr as statement on "[], fc.fun);
-    return fastcast!(Object) (mkAssignment(args[0], ex));
+    return fastcast!(Object) (mkAssignment(firstArg, ex));
   }
   if (showsAnySignOfHaving(ex, "onDiscard")) {
     auto sc = fastalloc!(Scope)();

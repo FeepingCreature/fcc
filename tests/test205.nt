@@ -1,0 +1,12 @@
+module test205;
+
+struct S {
+  int i;
+  reassign S foo() { return S:(i+1); }
+}
+
+void main() {
+  S s;
+  s.foo();
+  assert(s.i == 1);
+}
