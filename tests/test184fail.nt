@@ -1,0 +1,10 @@
+module test184fail;
+
+alias strict Foo = void, strict Bar = void;
+
+void test(Foo* fp) { }
+
+void main() {
+  Bar* bp;
+  test bp;
+}

@@ -1,0 +1,18 @@
+module test201;
+
+class A {
+  int i;
+  auto foo() {
+    auto bar() {
+      return static λ{ return i; };
+    }
+    return bar();
+    return static λ{ return 5; };
+  }
+}
+
+void main() {
+  A a = new A;
+  a.i = 5;
+  assert(a.foo()() == 5);
+}

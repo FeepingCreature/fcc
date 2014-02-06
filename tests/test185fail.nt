@@ -1,0 +1,5 @@
+module test185fail;
+
+void main() {
+  bool b = 2;
+}

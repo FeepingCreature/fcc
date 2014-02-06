@@ -1,0 +1,8 @@
+module test188;
+
+void foo(char*, int i) { }
+void foo(char*, float f) { assert(false); }
+
+void main() {
+  foo("Hello", 3);
+}
