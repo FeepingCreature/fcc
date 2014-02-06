@@ -2,6 +2,18 @@ module std.matrix;
 
 import std.math;
 
+struct Matrix3x3 {
+  vec3f x 3 columns-vec;
+  void opMul(Matrix3x3* arg, Matrix3x3* outp) {
+    for int i <- 0..3 {
+      outp.columns-vec[i] = arg.columns-vec[i].(columns-vec.(_0 * xxx + _1 * yyy + _2 * zzz));
+    }
+  }
+  vec3f opMul(vec3f v) {
+    return columns-vec.(v.(_0*v.xxx + _1*v.yyy + _2*v.zzz));
+  }
+}
+
 // 4x4 is column-major just like OpenGL (yes yes)
 struct Matrix4x4 {
   vec4f x 4 columns-vec;
