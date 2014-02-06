@@ -364,18 +364,33 @@ bool matchCall(ref string text, Function fun, lazy string lazy_info, Argument[] 
 
 pragma(set_attribute, _buildFunCall, externally_visible);
 extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
-  auto fun = fastcast!(Function) (obj);
-  if (!fun) {
+  const bool probe = true; // allow returning null
+  Expr tryWith(Function fun) {
+    auto fc = fun.mkCall();
+    Statement[] inits;
+    if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, fun, info, null, probe))
+      return null;
+    if (!inits.length) return fc;
+    else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
+    return mkStatementAndExpr(inits[0], fc);
+  }
+  if (auto fun = fastcast!(Function) (obj)) {
+    return tryWith(fun);
+  } else if (auto os = fastcast!(OverloadSet) (obj)) {
+    Expr[] candidates;
+    foreach (osfun; os.funs) {
+      if (auto res = tryWith(osfun)) candidates ~= res;
+    }
+    if (!candidates) return null;
+    if (candidates.length > 1) {
+      logln("tried to call overloaded function but more than one overload matched: ", candidates);
+      fail;
+    }
+    return candidates[0];
+  } else {
     logln("you want me to call a ", obj, "?");
     fail;
   }
-  auto fc = fun.mkCall();
-  Statement[] inits;
-  if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, fun, info))
-    return null;
-  if (!inits.length) return fc;
-  else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
-  return mkStatementAndExpr(inits[0], fc);
 }
 
 import ast.parse, ast.static_arrays;
