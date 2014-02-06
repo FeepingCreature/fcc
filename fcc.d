@@ -734,6 +734,101 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref"[], "2101"[], "&"[]);
 
+// from ast.structure
+static this() {
+  Expr handleStructOp(string op, string opname, Expr lhs, Expr rhs) {
+    if (!showsAnySignOfHaving(lhs, opname)) return null;
+    auto v1 = lhs.valueType(), v2 = rhs.valueType();
+    auto rns = fastcast!(RelNamespace)(resolveType(v1));
+    if (!rns) fail;
+    auto opfun = rns.lookupRel(opname, lhs);
+    // first, try extended pointer form since it's more efficient
+    // that is. instead of "lhs.op rhs", try "{lhs.op(&rhs, &auto res); return res;}"
+    // or "{lhs.op(rhs, &auto res); return res;}"
+    IType checkFunForPointerOpCall(Function fun, out bool argIsPointerToo) {
+      auto args = fun.getParams(false);
+      if (args.length == 2) {
+        auto rhs2 = rhs;
+        IType ptrtype;
+        if (auto rhsptr = fastcast!(Pointer)(resolveType(args[0].type))) {
+          // logln("yep it's a pointer, see if we can get ", rhs2.valueType(), " into ", rhsptr.target);
+          if (gotImplicitCast(rhs2, rhsptr.target, (IType it) { return test(it == rhsptr.target); })) {
+            argIsPointerToo = true;
+            ptrtype = args[1].type;
+          }
+        } else {
+          // logln("nope not a pointer, see if we can get ", rhs2.valueType(), " into ", args[0].type);
+          if (gotImplicitCast(rhs2, args[0].type, (IType it) { return test(it == args[0].type); })) {
+            argIsPointerToo = false;
+            ptrtype = args[1].type;
+          }
+        }
+        if (ptrtype) {
+          auto ptr = fastcast!(Pointer)(ptrtype);
+          if (ptr) return ptr.target;
+        }
+      }
+      return null;
+    }
+    Expr tryPointerCall(Function f) {
+      bool argIsPointerToo;
+      if (auto restype = checkFunForPointerOpCall(f, argIsPointerToo)) {
+        // reserve a result of type restype
+        return tmpize(rhs, (Expr rhs, LLVMRef res) {
+          // logln("detect pointer op call, ", argIsPointerToo, " for ", f);
+          if (!argIsPointerToo) {
+            res.type = restype;
+            auto call = buildFunCall(f, mkTupleExpr(rhs, fastalloc!(RefExpr)(res)), "direct arg op overload pointer res call");
+            if (!call) fail;
+            return mkStatementAndExpr(fastalloc!(ExprStatement)(call), res);
+          } else {
+            Expr doWith(LValue rhs, LValue res) {
+              auto call = buildFunCall(f, mkTupleExpr(fastalloc!(RefExpr)(rhs), fastalloc!(RefExpr)(res)), "pointer arg op overload pointer res call");
+              if (!call) {
+                logln("couldn't call ", f.getParams(false), " with a ", mkTupleExpr(fastalloc!(RefExpr)(rhs), fastalloc!(RefExpr)(res)).valueType());
+                fail;
+              }
+              return mkStatementAndExpr(fastalloc!(ExprStatement)(call), res);
+            }
+            res.type = mkTuple(restype, rhs.valueType()); // need to copy both so we can take a pointer
+            auto tup_0 = fastcast!(LValue)(mkTupleIndexAccess(res, 0));
+            auto tup_1 = fastcast!(LValue)(mkTupleIndexAccess(res, 1));
+            if (!tup_0 || !tup_1) fail;
+            auto as = mkAssignment(tup_1, rhs);
+            auto ex = doWith(tup_1, tup_0);
+            return mkStatementAndExpr(as, ex);
+          }
+        });
+      }
+      return null;
+    }
+    if (auto fun = fastcast!(Function)(opfun)) {
+      if (auto res = tryPointerCall(fun)) return res;
+    } else if (auto os = fastcast!(OverloadSet)(opfun)) {
+      foreach (osfun; os.funs)
+        if (auto res = tryPointerCall(osfun)) return res;
+    }
+    if (auto call = buildFunCall(opfun, rhs, "struct operator overload call")) return call; // straightforward 
+    /*if (auto res = iparse!(Expr, "operator_overload", "tree.expr _tree.expr.bin")
+                          (`lhs.`~opname~` rhs`, "lhs", lhs, "rhs", rhs)) {
+      return res;
+    }*/
+    // throw new Exception(qformat("op ", opname, " = ", opfun, " did not match ", rhs.valueType(), " ", v2));
+    return null;
+  }
+  void defineStructOp(string op, string opname) {
+    defineOp(op, stuple(op, opname) /apply/ &handleStructOp);
+  }
+  defineStructOp("+", "opAdd");
+  defineStructOp("-", "opSub");
+  defineStructOp("*", "opMul");
+  defineStructOp("/", "opDiv");
+  defineStructOp("%", "opMod");
+  defineStructOp("&", "opAnd");
+  defineStructOp("|", "opOr");
+}
+
+
 Object gotAsType(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   auto t2 = text;

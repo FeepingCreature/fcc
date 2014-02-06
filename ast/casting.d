@@ -43,7 +43,6 @@ template ReinterpretCast_Contents(T) {
     }*/
     auto new_from_test = fastcast!(T) (from);
     if (!new_from_test/* || from.valueType().size != backup.valueType().size*/) {
-      // Liskov, if already deceased, is getting quite a spin here.
       logln("Missubstitution!"[]);
       logln("In cast of "[], T.stringof);
       logln("Was: "[], backup, " ", backup.valueType());

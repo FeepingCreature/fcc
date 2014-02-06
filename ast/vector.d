@@ -910,7 +910,9 @@ static this() {
     else {
       auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs), null, true)[0];
       auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs), null, true)[0];
-      type = lookupOp(op, l1, r1).valueType();
+      auto ex = lookupOp(op, true /* allowNone */, l1, r1);
+      if (!ex) return null;
+      type = ex.valueType();
     }
     return fastalloc!(VecOp)(type, len, real_len, lhs, rhs, op);
   }

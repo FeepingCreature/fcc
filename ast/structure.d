@@ -776,6 +776,7 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
 
 final class MemberAccess_LValue : MemberAccess_LValue_ {
   static const isFinal = true;
+  MemberAccess_LValue create() { return new MemberAccess_LValue; }
   this(LValue base, string name) { super(base, name); }
   this() { super(); }
 }
@@ -990,27 +991,3 @@ retry:
   return m;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member"[], null, "."[]);
-
-import ast.opers;
-static this() {
-  Expr handleStructOp(string op, string opname, Expr lhs, Expr rhs) {
-    auto v1 = lhs.valueType(), v2 = rhs.valueType();
-    if (!showsAnySignOfHaving(lhs, opname)) return null;
-    // TODO find way that's faster than iparse
-    if (auto res = iparse!(Expr, "operator_overload", "tree.expr _tree.expr.bin")
-                          (`lhs.`~opname~` rhs`, "lhs", lhs, "rhs", rhs)) {
-      return res;
-    }
-    return null;
-  }
-  void defineStructOp(string op, string opname) {
-    defineOp(op, stuple(op, opname) /apply/ &handleStructOp);
-  }
-  defineStructOp("+", "opAdd");
-  defineStructOp("-", "opSub");
-  defineStructOp("*", "opMul");
-  defineStructOp("/", "opDiv");
-  defineStructOp("%", "opMod");
-  defineStructOp("&", "opAnd");
-  defineStructOp("|", "opOr");
-}
