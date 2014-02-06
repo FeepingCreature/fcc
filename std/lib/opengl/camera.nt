@@ -43,7 +43,7 @@ abstract class PerspectiveCam : Camera {
           c.frameplusone = glwindow.framecount + 1;
         }
         origmat.invert;
-        origmat.multiply &mvmat;
+        origmat *= mvmat;
         c.mat = origmat;
       }
       // TODO figure out why need w => 1
@@ -56,8 +56,7 @@ abstract class PerspectiveCam : Camera {
         mvmat.invert;
         GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
         prmat.invert;
-        mvmat.multiply &prmat;
-        c.mat = mvmat;
+        c.mat = mvmat * prmat;
       }
       // return mvmat.multiply (v, w => 1);
       return c.mat.multiply (v, w => 1);
@@ -66,7 +65,7 @@ abstract class PerspectiveCam : Camera {
   vec3f apply(vec3f v) using mode GL {
     GetFloatv(MODELVIEW_MATRIX, Matrix4x4 mvmat);
     GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
-    prmat.multiply &mvmat;
+    prmat *= mvmat;
     auto res = prmat.multiply (v, w => 1);
     res.y = -res.y;
     res = res * 0.5 + 0.5;
@@ -118,7 +117,7 @@ template WorldCam(T) {
           c.mat.rotate(horz, -vec3f.X);
           c.frameplusone = glwindow.framecount + 1;
         }
-        fastgl.matrix.multiply &c.mat;
+        fastgl.matrix *= c.mat;
         return;
       }
       // Huh. No idea what this was about.
