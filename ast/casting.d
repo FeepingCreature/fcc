@@ -161,7 +161,12 @@ Expr genCastFor(Expr ex, IType dest, string text) {
     auto ex2 = ex;
     if (!gotImplicitCast(ex2, dest, (IType it) { types ~= it; return it.llvmSize() == dest.llvmSize(); })) {
       text.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.llvmSize(), ". "[]);
-    } else return reinterpret_cast(dest, ex2);
+    } else {
+      if (!!fastcast!(StructLike)(resolveType(dest)) && showsAnySignOfHaving(fastalloc!(Placeholder)(dest), "init")) {
+        text.failparse("requested cast to struct that has init function, but init didn't match and we fell back to reinterpret-cast - this is probably not what you wanted");
+      }
+      return reinterpret_cast(dest, ex2);
+    }
   }
   return null;
 }

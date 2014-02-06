@@ -1,0 +1,11 @@
+module test207fail;
+
+struct S {
+  int i;
+  void init(int i) { this.i = i; }
+}
+
+void main() {
+  S s = S:5.7f;
+  writeln "$(s.i)";
+}
