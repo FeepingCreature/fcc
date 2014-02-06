@@ -36,7 +36,7 @@ class RelFunCall : FunCall, RelTransformable {
     auto res = fastalloc!(RelFunCall)(baseptr?baseptr.dup:null);
     res.fun = fun;
     res.params = params.dup;
-    foreach (ref entry; params) entry = entry.dup;
+    foreach (ref entry; res.params) entry = entry.dup;
     return res;
   }
   override Object transform(Expr base) {
