@@ -1,0 +1,12 @@
+module test206;
+
+struct A {
+  int i;
+  A opAdd(A a2) { return A:(i + a2.i); }
+}
+
+void main() {
+  A a = A:2;
+  a += a;
+  assert(a.i == 4);
+}
