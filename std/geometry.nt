@@ -1,0 +1,91 @@
+module std.geometry;
+
+import std.math;
+
+int line_sphere_test(vec3f a, b, c, float r, (float, float)* resultsp) {
+  alias results = *resultsp;
+  auto d = b - a;
+  a -= c;
+  /** let c be 0
+    |a + f d| = r
+    |a + f d|² = r²
+    |a + f d|.(x²+y²+z²) = r²
+    a.x^2 + 2 f a.x d.x + f^2 d.x^2 [...y] [...z] = r^2
+    a.a + 2 f (a*d).sum + f^2 d.d = r^2
+    f^2 + f 2 (a*d).sum / d.d + (a.a - r^2) / d.d = 0
+  **/
+  auto aa = (a*a).sum, dd = (d*d).sum, ad = (a*d).sum;
+  auto p_half = ad / dd, q = (aa - r*r) / dd;
+  // f = -p/2 +- sqrt( p^2/4 - q)
+  // f = -p_half +- sqrt ( p_half^2 - q)
+  auto rad = p_half*p_half - q;
+  if (rad < 0) return false;
+  if (rad == 0) { results[0] = -p_half; return 1; }
+  auto sq = sqrt rad;
+  auto f = -p_half - sq;
+  results[(0, 1)] = (-p_half - sq, -p_half + sq);
+  return 2;
+}
+
+int line_box_test(vec3f a, b, from, to) {
+  // borrowed from http://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms
+  auto dir = b - a;
+  auto dirfrac = 1 / dir;
+  (from, to) = (min(from, to), max(from, to));
+  auto δ1 = (from - a) * dirfrac, δ2 = (to - a) * dirfrac;
+  alias t1 = δ1.x, t2 = δ2.x, t3 = δ1.y, t4 = δ2.y, t5 = δ1.z, t6 = δ2.z;
+  float tfar = t1.max(t2).min(t3.max(t4)).min(t5.max(t6));
+  float tnear = t1.min(t2).max(t3.min(t4)).max(t5.min(t6));
+  // if tnear < 0, ray (line) is intersecting AABB, but whole AABB is behing us
+  if (tnear < 0) return false;
+  // if tnear > tfar , ray doesn't intersect AABB
+  if (tnear > tfar) return false;
+  return true;
+}
+
+bool point_in_rect(vec2f pt, a, b) {
+  return eval a.x <= pt.x <= b.x  &&  a.y <= pt.y <= b.y;
+}
+
+float point_line_dist(vec2f pt, a, b) {
+  auto δ1 = b - a, δ2 = a - pt;
+  return |δ1.x*δ2.y - δ2.x*δ1.y|/|b-a|;
+}
+
+bool circle_on_segment(vec2f center, float radius, vec2f a, b) {
+  if (a == b) return |a-center| < radius;
+  if ((b-a)*(center-a)).(x+y<0) return |a-center| < radius;
+  if ((a-b)*(center-b)).(x+y<0) return |b-center| < radius;
+  return point_line_dist(center, a, b) < radius;
+}
+
+bool overlaps_rect_circle(vec2f ra, rb, center, float radius) {
+  // borrowed from http://stackoverflow.com/questions/401847/circle-rectangle-collision-detection-intersection
+  return eval point_in_rect(center, ra, rb)
+      || circle_on_segment(center, radius, ra, vec2f(ra.x, rb.y))
+      || circle_on_segment(center, radius, ra, vec2f(rb.x, ra.y))
+      || circle_on_segment(center, radius, vec2f(ra.x, rb.y), rb)
+      || circle_on_segment(center, radius, vec2f(rb.x, ra.y), rb)
+  ;
+}
+
+bool rects_overlap(vec2f from1, to1, from2, to2) {
+  auto size = min(to1, to2) - max(from1, from2);
+  return eval size.(x >= 0 && y >= 0);
+}
+
+vec3f line_plane_intersect(vec3f a, b, n, float d) {
+  /**
+   * p = a + k * (b-a)    line
+   * (p - n*d) . n = 0    plane
+   * (a + k (b-a) - n d) . n = 0
+   * (a.x + k (b-a).x - (n d).x) * n.x + ...y + ...z = 0
+   * a.x n.x + k (b-a).x n.x - n.x² d.x  +  ...y  +  ...z = 0
+   * k ((b-a).x n.x + ...y + ...z) = n.x² d.x - a.x n.x  +  ...y  +  ...z
+   * k (b-a) . n = n.x (n.x d.x - a.x) + n.y (...y) + n.z (...z)
+   * k (b-a) . n = n . (n*d - a)
+   * k = (n . (n*d - a)) / (n . (b - a))
+   **/
+  auto k = (n*(n*d - a)).(x+y+z) / (n*(b-a)).(x+y+z);
+  return a + (b - a) * k;
+}
