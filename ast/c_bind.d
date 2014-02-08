@@ -358,13 +358,21 @@ src_cleanup_redo: // count, then copy
     }
     return null;
   }
+  void eatPointless(ref string text) { // does nothing in neat
+    while (true) {
+      if (text.accept("const")) continue;
+      if (text.accept("__const")) continue;
+      if (text.accept("__restrict")) continue;
+      break;
+    }
+  }
   IType matchType(ref string text) {
     auto t2 = text;
     if (t2.accept(")")) return null;
-    text.accept("const");
-    text.accept("__const");
+    text.eatPointless();
     if (auto ty = matchSimpleType(text)) {
       while (text.accept("*")) {
+        text.eatPointless();
         auto p = fastalloc!(Pointer)(Single!(SysInt));
         p.target = ty; // manually initialize to skip forcedConvert so we give late types more time to resolve
         ty = p;
@@ -376,9 +384,7 @@ src_cleanup_redo: // count, then copy
     auto t2 = text;
     IType ty = matchType(t2);
     if (!ty) return null;
-    t2.accept("__restrict");
-    t2.accept("const");
-    t2.accept("__const");
+    t2.eatPointless();
     string id;
     if (!gotIdentifier(t2, id)) {
       if (t2.accept("(") && t2.accept("*")) {
@@ -603,6 +609,7 @@ src_cleanup_redo: // count, then copy
     stmt.accept("__extension__");
     bool isTypedef;
     if (stmt.accept("typedef")) isTypedef = true;
+    stmt.eatPointless();
     if (stmt.accept("enum")) {
       auto entries = stmt.between("{", "}").split(",");
       if (entries.length && !entries[$-1].strip().length)

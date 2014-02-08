@@ -3,50 +3,65 @@ module std.png;
 import c.png;
 pragma(lib, "png");
 
+template FT(alias A) {
+  alias PT = ParamTypes type-of &A;
+  static if (type-is tuple PT) {
+    alias FT = PT[0];
+  } else {
+    alias FT = PT;
+  }
+}
+
+template ST(alias A) {
+  alias PT = ParamTypes type-of &A;
+  alias ST = PT[1];
+}
+
 extern(C) void callback_write(png_structp png_ptr, png_bytep data, png_size_t length) {
   void* _threadlocal = getThreadlocal();
-  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(png_ptr);
+  
+  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(FT!png_get_io_ptr: png_ptr);
   write_dg(data[0..length]);
 }
 
 // TODO
 extern(C) void callback_flush(png_structp png_ptr) {
   void* _threadlocal = getThreadlocal();
-  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(png_ptr);
+  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(FT!png_get_io_ptr: png_ptr);
 }
 
-defmode PNG p "prefix png_ prefix PNG_ first-arg p";
+defmode PNG "prefix PNG_ prefix png_";
 
 class PNGWriter {
   png_structp ptr;
   png_infop infoptr;
-  void init(void delegate(string) writefun) {
-    ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, null, null, null);
+  void init(void delegate(string) writefun) using mode PNG {
+    ptr = create_write_struct(LIBPNG_VER_STRING, null, null, null);
     if (!ptr) raise new Error "failed to initialize libpng";
     // png_set_compression_level(ptr, 0);
-    infoptr = png_create_info_struct (ptr);
+    infoptr = create_info_struct (FT!create_info_struct: ptr);
     if (!infoptr) raise new Error "failed to create libpng info struct";
     auto data = new void delegate(string);
     *data = writefun;
-    png_set_write_fn(ptr, void*: data, &callback_write, &callback_flush);
+    set_write_fn(FT!set_write_fn: ptr, void*: data, &callback_write, &callback_flush);
   }
-  void configure(int w, h) using mode PNG ptr {
+  void configure(int w, h) using mode PNG {
     alias settings = (COLOR_TYPE_RGB_ALPHA, INTERLACE_NONE, COMPRESSION_TYPE_BASE, FILTER_TYPE_BASE);
-    set_IHDR(infoptr, w, h, 8, settings);
-    write_info(infoptr);
+    set_IHDR(FT!set_IHDR: ptr, ST!set_IHDR: infoptr, w, h, 8, settings);
+    write_info(FT!write_info: ptr, ST!write_info: infoptr);
     color_8 sigbits;
     sigbits.(red, green, blue) = png_byte:8 x 3;
     sigbits.(gray, alpha) = png_byte:0 x 2;
-    set_sBIT(infoptr, &sigbits);
+    set_sBIT(FT!set_sBIT: ptr, ST!set_sBIT: infoptr, &sigbits);
   }
-  void writeLine(ubyte[] data) using mode PNG ptr {
-    write_row(png_bytep:data.ptr);
+  void writeLine(ubyte[] data) using mode PNG {
+    write_row(FT!write_row: ptr, png_bytep:data.ptr);
   }
-  void flush() using mode PNG ptr {
-    write_flush();
+  void flush() using mode PNG {
+    write_flush(FT!write_flush: ptr);
   }
-  void end() using mode PNG ptr {
-    write_end (infoptr);
-    destroy_write_struct(png_structpp:&ptr, png_infopp:&infoptr);
+  void end() using mode PNG {
+    write_end (FT!write_end: ptr, ST!write_end: infoptr);
+    destroy_write_struct (FT!destroy_write_struct: &ptr, ST!destroy_write_struct: &infoptr);
   }
 }
