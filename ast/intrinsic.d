@@ -695,8 +695,9 @@ void setupSysmods() {
       ModuleInfo[auto~] imports;
       ClassData*[] classes;
       string toString() {
-        if !functions return "[module $name imports $([for m <- imports: m.name].eval[])]";
-        return "[module $name imports $([for m <- imports: m.name].eval[]) ($functions)]";
+        string imports = "$([for m <- imports: m.name].eval[])";
+        if !functions return "[module $name imports $imports]";
+        return "[module $name imports $imports ($functions)]";
       }
     }
     
