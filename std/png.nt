@@ -35,6 +35,8 @@ defmode PNG "prefix PNG_ prefix png_";
 class PNGWriter {
   png_structp ptr;
   png_infop infoptr;
+  int w, h;
+  int linesWritten;
   void init(void delegate(string) writefun) using mode PNG {
     ptr = create_write_struct(LIBPNG_VER_STRING, null, null, null);
     if (!ptr) raise new Error "failed to initialize libpng";
@@ -46,6 +48,7 @@ class PNGWriter {
     set_write_fn(FT!set_write_fn: ptr, void*: data, &callback_write, &callback_flush);
   }
   void configure(int w, h) using mode PNG {
+    this.(w, h) = (w, h);
     alias settings = (COLOR_TYPE_RGB_ALPHA, INTERLACE_NONE, COMPRESSION_TYPE_BASE, FILTER_TYPE_BASE);
     set_IHDR(FT!set_IHDR: ptr, ST!set_IHDR: infoptr, w, h, 8, settings);
     write_info(FT!write_info: ptr, ST!write_info: infoptr);
@@ -55,6 +58,8 @@ class PNGWriter {
     set_sBIT(FT!set_sBIT: ptr, ST!set_sBIT: infoptr, &sigbits);
   }
   void writeLine(ubyte[] data) using mode PNG {
+    if (data.length != w * 4) raise new Error "PNGWriter was configured for width $w but told to write line of $(data.length/4) pixels";
+    if (linesWritten++ >= h) raise new Error "PNGWriter was configured for height $h but more than $h lines were written";
     write_row(FT!write_row: ptr, png_bytep:data.ptr);
   }
   void flush() using mode PNG {

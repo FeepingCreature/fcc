@@ -346,7 +346,7 @@ string locate_name(string name) {
 void unknownId(string id, string text, bool fail = false) {
   string msg;
   if (auto hint = locate_name(id)) {
-    msg = qformat("unknown identifier: '", id, "', appears in ", hint);
+    msg = qformat("unknown identifier: '", id, "', appears in ", hint, ", which was not imported here");
   } else {
     msg = qformat("unknown identifier: '", id, "'");
   }

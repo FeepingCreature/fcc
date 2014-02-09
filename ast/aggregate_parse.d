@@ -41,7 +41,7 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
       auto t3 = t2;
       if (t2.gotIdentifier(tryId)) {
         if (auto hint = locate_name(tryId)) {
-          t3.failparse("unknown statement: identifier '", tryId, "' appears in ", hint);
+          t3.failparse("unknown statement: identifier '", tryId, "' appears in ", hint, ", which was not imported here");
         }
       }
       t2 = t3;
