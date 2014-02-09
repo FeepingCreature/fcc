@@ -428,6 +428,26 @@ class LitTemp : mkDelegate, Literal {
   abstract override string getValue();
 }
 
+Function extractBaseFunction(Expr ex) {
+  if (auto nfr = fastcast!(NestFunRefExpr)(ex)) return nfr.fun;
+  if (auto dce = fastcast!(DgConstructExpr)(ex)) {
+    if (auto fs = fastcast!(FunSymbol)(dce.ptr)) {
+      // logln("fs fun is ", fastcast!(Object)(fs.fun).classinfo.name, " ", fs.fun);
+      return fs.fun;
+    }
+  }
+  return null;
+}
+
+void purgeCaches(Expr ex) {
+  if (auto dce = fastcast!(DgConstructExpr)(ex)) {
+    dce.cached_type = null;
+    if (auto fs = fastcast!(FunSymbol)(dce.ptr)) {
+      fs.vt_cache = null; // discard possibly-invalid cached type after type inference
+    }
+  }
+}
+
 import ast.casting: implicits;
 static this() {
   // the next two implicits are BLATANT cheating.
@@ -435,9 +455,11 @@ static this() {
     if (!hint) return null;
     auto dg = fastcast!(Delegate) (resolveType(hint));
     if (!dg) return null;
-    if (auto nfr = fastcast!(NestFunRefExpr) (ex)) {
-      auto fun = nfr.fun;
-      auto type1 = fun.type, type2 = dg.ft;
+    if (auto fun = extractBaseFunction(ex)) {
+      auto type1 = fun.type.dup, type2 = dg.ft;
+      fun.type = type1;
+      // logln("type1 ", type1);
+      // logln("type2 ", type2);
       if (type1.args_open) {
         auto params1 = type1.params;
         auto params2 = type2.params;
@@ -457,14 +479,15 @@ static this() {
           fun.fixup;
         }
         // logln(" => ", fun.tree);
+        // logln(" -> ", fun.type);
       }
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType dest) {
     if (fastcast!(HintType!(Tuple))(dest)) return null; // what
-    auto nfr = fastcast!(NestFunRefExpr) (ex);
-    if (!nfr) {
+    auto fun = extractBaseFunction(ex);
+    if (!fun) {
       auto dg = fastcast!(Delegate) (resolveType(ex.valueType()));
       if (dg && !dg.ret) {
         logln("huh. ", ex);
@@ -473,10 +496,13 @@ static this() {
       }
       return null;
     }
-    auto fun = nfr.fun;
+    // logln("second stage: ", fun.type);
     if (!fun.type.ret) {
-      // scope(failure) logln("test? dest ", dest);
+      scope(failure) logln("test? dest ", dest);
       fun.parseMe;
+      purgeCaches(ex);
+      // logln("post-parse: ", fun.type, " and ", ex.valueType());
+      // logln("ex = ", ex);
       if (fun.type.ret)
         return ex;
     }

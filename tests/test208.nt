@@ -1,0 +1,8 @@
+module test208;
+
+void main() {
+  void delegate(int) a = λ(i) { };
+  void delegate(float) b = new λ(f) { };
+  a 5;
+  b 6;
+}
