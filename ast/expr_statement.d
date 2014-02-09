@@ -33,7 +33,7 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
     
     auto lv = lvize(ex);
     if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate lv.onDiscard"[], "lv"[], lv))
+                              ("_evaluate lv.onDiscard"[], "lv"[], lv))
       sc.addStatement(onUsing);
     return sc;
   }

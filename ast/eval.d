@@ -20,4 +20,4 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   }
   return obj;
 }
-mixin DefaultParser!(gotEval, "tree.expr.eval"[], "27"[], "evaluate"[]);
+mixin DefaultParser!(gotEval, "tree.expr.eval"[], "27"[], "_evaluate"[]);

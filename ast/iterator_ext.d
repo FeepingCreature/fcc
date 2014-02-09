@@ -673,9 +673,9 @@ Expr tryConvertToIterator(Expr ex) {
   }
   // logln("try "[], t2.nextText(), "; "[], thingy);
   auto test1 = iparse!(Expr, "si_test_step", "tree.expr"[])
-                      (`evaluate (ex.value)`[], "ex"[], ex);
+                      (`_evaluate (ex.value)`[], "ex"[], ex);
   auto test2 = iparse!(Cond, "si_test_ivalid"[], "cond"[])
-                      (`evaluate (ex.advance)`[], "ex"[], ex);
+                      (`_evaluate (ex.advance)`[], "ex"[], ex);
   if (!test1 || !test2) {
     logln("test failed: "[], !test1, ", "[], !test2);
     fail;

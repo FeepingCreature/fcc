@@ -168,7 +168,7 @@ class StructIterator : Type, Iterator {
     scope(failure) fail;
     scope(failure) logln("it was "[], it);
     _elemType = iparse!(Expr, "si_elemtype"[], "tree.expr.eval"[])
-                       (`evaluate (bogus.value)`,
+                       (`_evaluate (bogus.value)`,
                         "bogus"[], fastalloc!(PlaceholderTokenLV)(wrapped, "wrapped"[])
                        ).valueType();
   }
@@ -180,13 +180,13 @@ class StructIterator : Type, Iterator {
     Expr currentValue(Expr ex) {
       ex = reinterpret_cast(wrapped, ex);
       return iparse!(Expr, "si_value"[], "tree.expr"[])
-                    (`evaluate (ex.value)`,
+                    (`_evaluate (ex.value)`,
                      "ex"[], ex);
     }
     Cond testAdvance(LValue lv) {
       lv = fastcast!(LValue) (reinterpret_cast(wrapped, lv));
       return iparse!(Cond, "si_ivalid"[], "cond"[])
-                    (`evaluate (lv.advance)`,
+                    (`_evaluate (lv.advance)`,
                      "lv"[], lv);
     }
     int opEquals(IType it) {

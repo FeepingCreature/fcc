@@ -137,13 +137,13 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     if (showsAnySignOfHaving(context, "onUsing")) {
       if (auto onUsing = iparse!(Expr, "onUsing", "tree.expr", canFail)
-                                ("evaluate ex.onUsing"[], "ex"[], context))
+                                ("_evaluate ex.onUsing"[], "ex"[], context))
         sc.addStatement(new ExprStatement(onUsing));
     }
     
     if (showsAnySignOfHaving(context, "onExit")) {
       if (auto onExit = iparse!(Expr, "onExit", "tree.expr", canFail)
-                                ("evaluate ex.onExit"[], "ex"[], context))
+                                ("_evaluate ex.onExit"[], "ex"[], context))
         sc.addGuard(new ExprStatement(onExit));
     }
     

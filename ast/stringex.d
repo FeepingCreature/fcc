@@ -174,7 +174,7 @@ Expr simpleFormat(Expr ex) {
   }
   if (showsAnySignOfHaving(ex, "toString")) {
     try return iparse!(Expr, "thing_tostring", "tree.expr")
-                      (`evaluate ex.toString`, "ex"[], ex);
+                      (`_evaluate ex.toString`, "ex"[], ex);
     catch (Exception ex) { return null; } // myeh.
   }
   if (fastcast!(IType) (sysmod.lookup("bool")) == type) {

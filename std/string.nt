@@ -258,7 +258,7 @@ template castIter(T) {
       U sup;
       bool advance() {
         if (!sup.advance()) return false;
-        value = T: evaluate (sup.value);
+        value = T: _evaluate (sup.value);
         return true;
       }
     }
