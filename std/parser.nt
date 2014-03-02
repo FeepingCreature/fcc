@@ -5,6 +5,9 @@ import std.string;
 context parser {
   string text;
   string delegate(string) stripOverride;
+  void fail(string s) {
+    .fail("at '$text': $s");
+  }
   void cleanup() {
     // strip, eat comments
     do {
@@ -21,9 +24,16 @@ context parser {
     commit;
     return true;
   }
+  void expect(string match) {
+    if (parser.accept(match)) return;
+    fail "'$match' expected";
+  }
   bool done() {
     cleanup;
     return !text.length;
+  }
+  void expectDone() {
+    if (!done()) fail "text left over";
   }
   string slice(string to) {
     cleanup;
@@ -36,6 +46,7 @@ context parser {
       if (len >= text.length) return false;
       if ("a" <= text[len] <= "z" || "A" <= text[len] <= "Z") return true;
       if (text[len] == "_") return true;
+      if (len && "0" <= text[len] <= "9") return true; // first letter must not be a digit
       return false;
     }
     while checkAlphaIsh() len ++;
@@ -44,33 +55,62 @@ context parser {
     text = text[len .. $];
     return res;
   }
+  string getIdentifier() {
+    if (auto res = gotIdentifier()) return res;
+    fail "identifier expected";
+  }
   string gotNumberStr() {
     cleanup;
     auto start = text;
     if (!gotNumber(&int bogus)) return null;
     return start[0 .. text.ptr - start.ptr];
   }
-  bool gotNumber(int* ip) {
-    cleanup;
-    bool eatDigit(int* ip) {
-      alias i = *ip;
-      if (!text.length) return false;
-      if ("0" <= text[0] <= "9") {
-        i = text[0] - "0";
-        text = text[1..$];
-        return true;
-      }
-      return false;
+  bool gotDigit(int* ip) {
+    alias i = *ip;
+    if (!text.length) return false;
+    if ("0" <= text[0] <= "9") {
+      i = text[0] - "0";
+      text = text[1..$];
+      return true;
     }
+    return false;
+  }
+  bool gotNumber(int* ip) using scoped text {
+    cleanup;
     int res;
+    bool negative;
+    if (accept("-")) negative = true;
     bool mew;
-    while eatDigit(&int d) { mew = true; res = res * 10 + d; }
+    while gotDigit(&int d) { mew = true; res = res * 10 + d; }
     if (!mew) return false;
-    *ip = res; return true;
+    if (negative) res = -res;
+    
+    *ip = res;
+    commit;
+    return true;
   }
   int getNumber() {
     if (gotNumber &int i) return i;
     fail "could not parse number";
+  }
+  bool gotFloat(float* fp) using scoped text {
+    cleanup;
+    if (accept("inf")) { commit; *fp = float.infinity; return true; }
+    int i;
+    bool negative;
+    if (accept("-")) negative = true;
+    if (!gotNumber(&i)) return false;
+    if (!accept(".")) return false;
+    double res = i, factor = 0.1;
+    while gotDigit(&int d) { res += factor * d; factor /= 10; }
+    if (negative) res = -res;
+    *fp = float:res;
+    commit;
+    return true;
+  }
+  float getFloat() {
+    if (gotFloat &float f) return f;
+    fail "could not parse float";
   }
   string gotString(string sep = "\"") {
     using scoped text {
