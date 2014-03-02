@@ -9,20 +9,25 @@ class ConcatChain : Expr {
   Array type;
   Expr[] arrays;
   this(Expr[] exprs...) {
-    if (!exprs.length) return;
+    if (!exprs.length) assert(false); // null type?!
     auto base = exprs.take();
-    auto sa = fastcast!(StaticArray)~ base.valueType();
-    if (sa) {
+    auto bvt = resolveType(base.valueType());
+    if (auto sa = fastcast!(StaticArray)(bvt)) {
       type = fastalloc!(Array)(sa.elemType);
+      if (!type) fail(Format(sa, " elemtype is null - what "));
     } else {
-      type = fastcast!(Array)~ base.valueType();
-      assert(!!type, Format(base, " is not array or static array! "[]));
+      type = fastcast!(Array) (bvt);
+      if (!type) fail(Format(bvt, " is not array or static array! "[]));
     }
     addArray(base);
     foreach (expr; exprs)
       addArray(expr);
   }
-  mixin DefaultDup!();
+  override ConcatChain dup() {
+    auto arrays = arrays.dup;
+    foreach (ref ex; arrays) ex = ex.dup;
+    return new ConcatChain(arrays);
+  }
   mixin defaultIterate!(arrays);
   Expr collapse() {
     if (type == Single!(Array, Single!(Char))) {
