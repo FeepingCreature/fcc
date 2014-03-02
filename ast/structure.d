@@ -966,7 +966,11 @@ retry:
     text = t2;
     return m;
   }
-  auto m = rn.lookupRel(member, ex);
+  Object m;
+  try m = rn.lookupRel(member, ex);
+  catch (Exception ex) {
+    text.failparse(ex);
+  }
   // logln("::: ", m, " ", (fastcast!(Expr)(m))?(fastcast!(Expr)(m)).valueType():null);
   if (!m) {
     if (t2.eatDash(member)) { goto retry; }

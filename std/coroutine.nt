@@ -73,6 +73,11 @@ template setupCoIterator(T) {
   }
 }
 
+void delegate() simpleCoro(void delegate(void delegate() yield) task) {
+  auto coro = new Coroutine task;
+  return &coro.enter;
+}
+
 template feed(T) {
   void delegate(T) feed(void delegate(T delegate() yield) dg) {
     ref data = (new (T, ()))._0;

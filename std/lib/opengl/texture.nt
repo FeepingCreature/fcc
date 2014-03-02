@@ -14,6 +14,13 @@ void fast_vec4f_to_ints(vec4f[] vecs, int[] ints) {
   }
 }
 
+void withTexture(ITexture tex, void delegate() dg) using mode GL {
+  GetIntegerv(TEXTURE_BINDING_2D, &GLenum backup);
+  tex.bind;
+  dg();
+  TEXTURE_2D.BindTexture backup;
+}
+
 class Texture : FastITexture {
   int width, height;
   alias size = vec2i(width, height);

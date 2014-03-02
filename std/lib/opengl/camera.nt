@@ -189,6 +189,7 @@ template EgoCam(T) {
 template OrbitCam(T) {
   class OrbitCam : WorldCam!T, Supports2DControl {
     float distance;
+    void recalcDistance() { distance = |lookat - pos|; }
     void init(vec3f p, t, float fov = 45f) { super.init(); this.fov = fov; (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
     void move(vec3f v) {
       onMovement();

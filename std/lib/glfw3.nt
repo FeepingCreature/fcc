@@ -167,6 +167,7 @@ class GLFWWindow : GLWindow {
     mem.free ptr;
   }
   void setDebugFlag(bool d) { debugflag = d; }
+  int multisamples;
   void setup(vec2i size) using mode GLFW {
     if (!Init()) raise new GLFWError "Failed to init GLFW";
     onFailure Terminate;
@@ -176,6 +177,9 @@ class GLFWWindow : GLWindow {
     WindowHint(DEPTH_BITS, 16);
     WindowHint(STENCIL_BITS, 8);
     WindowHint(OPENGL_DEBUG_CONTEXT, debugflag);
+    if (multisamples) {
+      WindowHint(SAMPLES, multisamples);
+    }
     
     (w, h) = size;
     if (!title) title = "GLFW Window";

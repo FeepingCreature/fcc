@@ -1442,7 +1442,9 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
       "-fp-contract=fast "/*-vectorize */"-vectorize-loops ";
-    if (!isWindoze()) fpmathopts ~= "-tailcallopt "; // TODO figure out why
+    if (!isWindoze() && false) fpmathopts ~= "-tailcallopt "; // TODO figure out why
+    // also TODO figure out why it keeps crashing
+    
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
     if (llvmver() > 31) {
       optflags ~= fpmathopts;

@@ -7,6 +7,7 @@ template Maybe(T) {
     T value;
     bool valid;
     T getvalue() { assert valid; return value; }
+    string toString() { if (valid) return "Just $value"; else return "Nothing"; } // oh haskell~
     alias implicit-cast = valid;
     alias implicit-cast-2 = getvalue();
   }
