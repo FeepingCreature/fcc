@@ -330,8 +330,10 @@ void setupSysmods() {
     }
     string readln() {
       char[auto~] buffer;
-      while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
-      return buffer[0..$-1];
+      while (!buffer.length || buffer[$-1] != "\n") { int i = fgetc(stdin); if (i == -1) break; buffer ~= char:byte:i; }
+      if (!buffer.length) return null;
+      if (buffer[$-1] == "\n") buffer = buffer[0..$-1];
+      return buffer[];
     }
     void write(string line) {
       printf("%.*s", line.length, line.ptr);
