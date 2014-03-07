@@ -178,8 +178,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     if (!coarseSrc) return;
     if (inFixup) return;
     if (type.args_open) {
-      logln("Tried to parse function but function has open args: ", this);
-      fail;
+      throw new Exception(Format("Tried to parse function but function has open args: ", this));
+      // logln("Tried to parse function but function has open args: ", this);
+      // fail;
     }
     auto backup = namespace();
     scope(exit) namespace.set(backup);
