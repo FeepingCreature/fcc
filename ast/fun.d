@@ -926,7 +926,7 @@ class FunctionType : ast.types.Type {
     }
     bool isComplete() {
       if (!ret || !ret.isComplete) return false;
-      foreach (par; params) if (!par.type.isComplete) return false;
+      foreach (par; params) if (!par.type || !par.type.isComplete) return false;
       return true;
     }
     string mangle() {
