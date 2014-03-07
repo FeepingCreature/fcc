@@ -164,7 +164,9 @@ template Hashmap(T) {
         realloc newsize;
       }
       auto pos = (hashptr &k) % size_t:backing.length;
-      while (isset[pos] == SetState.Set && !eq!Key(&backing[pos][0], &k)) {
+      // not "isset[pos] == SetState.Empty" - Deleted may hide Sets with our Key
+      // that must be _overwritten_! otherwise, you can end up with duplicate Keys!
+      while (isset[pos] != SetState.NotSet && !eq!Key(&backing[pos][0], &k)) {
         if (++pos == size_t:backing.length) pos = 0;
       }
       backing[pos] = (k, v);
