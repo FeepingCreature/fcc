@@ -149,7 +149,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   this() { idnum = funid_count ++; }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false, noreturn = false;
+  bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false, noreturn = false, unsafe_fast = false;
   Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
   string[] calldeps; // dependency tracker: dependencies that must be satisfied in functions that want to call this one
   string dwarfMetadata;
@@ -296,6 +296,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.weak = weak;
     res.noreturn = noreturn;
     res.extern_c = extern_c;
+    res.unsafe_fast = unsafe_fast;
     res.reassign = reassign;
     res.tree = tree;
     res.coarseSrc = coarseSrc;

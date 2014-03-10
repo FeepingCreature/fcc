@@ -182,6 +182,7 @@ string genIterates(int params) {
 mixin(genIterates(9));
 
 extern(C) Expr C_foldex(Expr, bool);
+extern(C) bool is_unsafe_fast();
 
 template defaultCollapse(T...) {
   static assert(!T.length);

@@ -132,6 +132,10 @@ extern(C) string mangletree(Tree tr) {
   asm { int 3; }
 }
 
+pragma(set_attribute, is_unsafe_fast, externally_visible);
+extern(C)
+  bool is_unsafe_fast() { return current_emitting_function().unsafe_fast; }
+
 static this() {
   setupSlice();
   setupIndex();
@@ -145,6 +149,7 @@ static this() {
     if (!fun) throw new Exception("pragma 'fast' must be inside a function");
     fun.optimize = true;
     releaseMode = true; // it'll be restored at the end of the function - no harm
+    fun.unsafe_fast = true;
     return Single!(NoOp);
   };
   pragmas["noreturn"] = delegate Object(Expr ex) {

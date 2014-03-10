@@ -118,7 +118,8 @@ class DerefExpr_ : LValue, HasInfo {
     void emitLLVM(LLVMFile lf) {
       auto ptrtype = typeToLLVM(src.valueType);
       // use addrspace(1) to preserve null accesses so they can crash properly
-      if (true) {
+      auto usf = is_unsafe_fast(); // if this is true, don't use addrspace(1)
+      if (!usf) {
         auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
         string addrspacecast = "bitcast ";
         if (llvmver() >= 34) addrspacecast = "addrspacecast ";
