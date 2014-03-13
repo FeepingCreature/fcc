@@ -466,8 +466,28 @@ static this() {
       }
       // oop_is_comparable_sanity_check(text, ex1, ex2);
       // force value comparison
+      
+      auto v1 = ex1.valueType(), v2 = ex2.valueType();
+      if (v1.llvmSize() != cmptype.llvmSize()) {
+        auto ee1 = ex1;
+        if (v2.llvmSize() != cmptype.llvmSize()) fail("what the hell");
+        if (!gotImplicitCast(ex1, v2, (IType it) { return test(it.llvmSize() == cmptype.llvmSize()); })) {
+          throw new Exception(Format("cannot cast ", ee1.valueType(), " to ", cmptype, "'s size"));
+          // fail;
+        }
+      }
       ex1 = reinterpret_cast(cmptype, ex1);
+      
+      if (v2.llvmSize() != cmptype.llvmSize()) {
+        auto ee2 = ex2;
+        if (v1.llvmSize() != cmptype.llvmSize()) fail("what even the hell, seriously");
+        if (!gotImplicitCast(ex2, v1, (IType it) { return test(it.llvmSize() == cmptype.llvmSize()); })) {
+          throw new Exception(Format("cannot cast ", ee2.valueType(), " to ", cmptype, "'s size"));
+          // fail;
+        }
+      }
       ex2 = reinterpret_cast(cmptype, ex2);
+      
       if (auto res = finalize(compare(op, ex1, ex2))) return res;
       return lookupOp(op, ex1, ex2);
     }

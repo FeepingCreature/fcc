@@ -1,0 +1,8 @@
+module test209;
+
+void main() {
+  string s;
+  if (s is null) writeln "hi";
+  // TODO
+  // if (null is s) writeln "hie";
+}

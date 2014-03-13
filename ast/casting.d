@@ -20,12 +20,12 @@ template ReinterpretCast_Contents(T) {
     // if (to.size != from.valueType().size) fail;
     auto fromtype = from.valueType();
     if (to.llvmType() != fromtype.llvmType() && to.llvmSize() != fromtype.llvmSize()) {
-      logln("Can't cast "[], from);
-      logln();
-      logln("from: ", from.valueType());
-      logln("to:   ", to);
-      logln("size: ", from.valueType().llvmSize(), " vs. "[], to.llvmSize(), "!"[]);
-      fail();
+      throw new Exception(Format("Can't cast "[], from, "\n",
+        "\n",
+        "from: ", from.valueType(), "\n",
+        "to:   ", to, "\n",
+        "size: ", from.valueType().llvmSize(), " vs. "[], to.llvmSize(), "!"[]
+      ));
     }
   }
   private this() { }
