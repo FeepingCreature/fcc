@@ -13,9 +13,6 @@ bool isTrivial(Expr ex) {
   if (auto am = fastcast!(ArrayMaker) (ex)) {
     return isTrivial(am.ptr) && isTrivial(am.length) && (!am.cap || isTrivial(am.cap));
   }
-  if (auto al = fastcast!(ArrayLength_Base) (ex)) {
-    return isTrivial(al.array);
-  }
   if (auto sl = fastcast!(StructLiteral) (ex)) {
     foreach (subex; sl.exprs)
       if (!isTrivial(subex)) return false;

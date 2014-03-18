@@ -99,6 +99,8 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         isArrayOrPtr = false;
       }
     }
+    bool isArray;
+    if (isArrayOrPtr) isArray = !fastcast!(Pointer)(resolveType(ex.valueType()));
     
     auto exv = resolveType(ex.valueType());
     
@@ -107,7 +109,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    if (isArrayOrPtr)
+    if (isArray) // NOT -OrPtr, because wtf, getArrayLength on a ptr
       namespace.set(fastalloc!(LengthOverride)(backup, getArrayLength(ex)));
     
     if (t2.accept("]")) return null; // [] shortcut

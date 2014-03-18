@@ -292,48 +292,6 @@ static this() {
 
 import ast.pointer, ast.casting;
 
-class ArrayLength_Base : Expr {
-  Expr array;
-  this(Expr a) { array = a; }
-  private this() { }
-  IType valueType() {
-    return Single!(SysInt); // TODO: size_t when unsigned conversion works
-  }
-  void emitLLVM(LLVMFile lf) {
-    scope mae = new MemberAccess_Expr(arrayToStruct(array), "length"[]);
-    mae.emitLLVM(lf);
-  }
-  mixin defaultIterate!(array);
-  Expr collapse() {
-    if (auto ale = fastcast!(ArrayLiteralExpr)(array))
-      return mkInt(ale.getLength());
-    return this;
-  }
-  mixin DefaultDup!();
-}
-
-class ArrayLength(T) : ArrayLength_Base, T {
-  static if (is(T == MValue)) {
-    alias LValue AT;
-  } else {
-    alias Expr AT;
-  }
-  this(AT at) {
-    super(fastcast!(Expr) (at));
-  }
-  private this() { super(); }
-  ArrayLength dup() { return fastalloc!(ArrayLength)(fastcast!(AT) (array.dup)); }
-  override {
-    IType valueType() {
-      return Single!(SysInt); // TODO: size_t when unsigned conversion works
-    }
-    string toString() { return Format("length("[], array, ")"[]); }
-    static if (is(T == MValue)) void emitAssignment(LLVMFile lf) {
-      assert(false, "TODO"[]);
-    }
-  }
-}
-
 static int am_count;
 
 // construct array from two (three?) expressions
@@ -432,8 +390,7 @@ static this() {
 Expr getArrayLength(Expr ex) {
   if (auto sa = fastcast!(StaticArray) (resolveType(ex.valueType())))
     return mkInt(sa.length);
-  if (auto lv = fastcast!(LValue) (ex)) return fastalloc!(ArrayLength!(MValue))(lv);
-  else return fastalloc!(ArrayLength!(Expr))(ex);
+  return mkMemberAccess(arrayToStruct!(Expr)(ex), "length");
 }
 
 Expr getArrayPtr(Expr ex) {
@@ -534,9 +491,4 @@ import ast.opers, ast.namespace;
 bool delegate(Expr, Expr, bool*) constantStringsCompare;
 static this() {
   converts ~= &arrayCast /todg;
-}
-
-static this() {
-  registerClass("ast.arrays"[], new ArrayLength!(MValue));
-  registerClass("ast.arrays"[], new ArrayLength!(Expr));
 }
