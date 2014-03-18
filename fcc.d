@@ -1434,34 +1434,42 @@ string cpumode() {
 }
 
 string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand, ref string tempfile) {
-  string llc_optflags;
+  string optflags, llc_optflags;
+  void addFlag(bool llc, string flag) {
+    if (optflags.length) optflags ~= " "; optflags ~= flag;
+    if (llc) {
+      if (llc_optflags.length) llc_optflags ~= " "; llc_optflags ~= flag;
+    }
+  }
   if (optimize) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
       string optfile = ".obj/"~output~".opt."~marker~"bc";
       string tempfile2 = ".obj/_all3.bc";
       assert(tempfile != tempfile2);
-      fullcommand ~= " opt "~flags~"-lint "~tempfile~" -o "~tempfile2~"&&";
+      fullcommand ~= " opt "~flags~" -lint "~tempfile~" -o "~tempfile2~"&&";
       tempfile = tempfile2;
       // if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
-      "-fp-contract=fast "/*-vectorize */"-vectorize-loops ";
-    if (!isWindoze() && false) fpmathopts ~= "-tailcallopt "; // TODO figure out why
+      "-fp-contract=fast";
+    if (!isWindoze() && false) fpmathopts ~= " -tailcallopt"; // TODO figure out why
     // also TODO figure out why it keeps crashing
     
-    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
+    addFlag(true, "-O3");
+    addFlag(false, "-internalize-public-api-list=main"~preserve);
     if (llvmver() > 31) {
-      optflags ~= fpmathopts;
+      addFlag(true, fpmathopts);
     }
+    // addFlag(false, "-vectorize");
+    addFlag(false, "-vectorize-loops");
     if (llvmver() > 32) {
-      optflags ~= "-vectorize-slp -vectorize-slp-aggressive ";
+      addFlag(false, "-vectorize-slp -vectorize-slp-aggressive");
     }
     string passflags = "-std-compile-opts ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
-    if (debugmode && llvmver() > 31) optflags ~= "-disable-fp-elim ";
+    if (debugmode && llvmver() > 31) addFlag(true, "-disable-fp-elim");
     optrun(cpumode()~passflags~optflags);
-    llc_optflags = optflags;
   }
   return cpumode()~llc_optflags;
 }
@@ -1542,11 +1550,12 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
-    if (cs.preopt && !cs.optimize) {
+    /*if (cs.preopt && !cs.optimize) {
       cmdline ~= Format("opt ", flags);
     } else {
       cmdline ~= Format("llvm-as ", flags);
-    }
+    }*/
+    cmdline ~= Format("opt ", flags); // llvm-as is not syntactically compatible with opt!!
     if (isWindoze || cs.optimize) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
@@ -1558,7 +1567,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
       // always -O1 the llc, since it's cheap
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 -ffunction-sections -fdata-sections "~march~cpumode()~"- -filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 -ffunction-sections -fdata-sections "~march~cpumode()~" - -filetype=obj -o ", objname);
     }
     
     if (!emulateGCCOutput) {
@@ -1682,7 +1691,7 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
     auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
-    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2 "~llc_cmd~"-filetype=obj -o "~objfile;
+    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2 "~llc_cmd~" -filetype=obj -o "~objfile;
     if (!emulateGCCOutput) {
       logSmart!(false)("> ", fullcommand);
     }
