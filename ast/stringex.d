@@ -64,8 +64,11 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
       }
       bool foundMatch;
       auto ex2 = ex;
-      if (!gotImplicitCast(ex2,  &tryFormat))
-        throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
+      if (!gotImplicitCast(ex2,  &tryFormat)) {
+        if (fastcast!(Structure)(resolveType(ex2.valueType())))
+          text.failparse("Can't format ", ex.valueType(), ": ", ex.valueType(), ".toString() is not defined");
+        text.failparse("Can't format ", ex.valueType(), ": no implicit cast of ", ex.valueType(), " could be formatted");
+      }
     }
   }
   if (!extended) return fastalloc!(StringExpr)(filterEscapes(backup), false);
