@@ -370,6 +370,23 @@ extern(C) string prettyprint(Iterable itr) {
   return prettyprint_rec(itr)._0;
 }
 
+// from ast.vardecl
+pragma(set_attribute, freeVar, externally_visible);
+extern(C) Statement freeVar(Expr var) {
+  auto vt = resolveType(var.valueType());
+  if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(var, "free")) {
+    return iparse!(Statement, "scope_guard", "tree.stmt")
+                  (`var.free;`, "var", var);
+  } else if (fastcast!(Delegate) (vt)) {
+    return iparse!(Statement, "scope_guard", "tree.stmt")
+                  (`dupvfree var.data;`, "var", var);
+  } else {
+    return iparse!(Statement, "scope_guard", "tree.stmt")
+                  (`mem.free var;`, "var", var);
+  }
+}
+
+
 // from ast.fun
 static this() {
   // Assumption: SysInt is size_t.

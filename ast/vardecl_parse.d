@@ -111,17 +111,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       sc.add(ea);
     }
     if (isScopeDecl) {
-      auto vt = resolveType(var.valueType());
-      if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(var, "free")) {
-        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
-                          (`var.free;`, "var", var));
-      } else if (fastcast!(Delegate) (vt)) {
-        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
-                          (`dupvfree var.data;`, "var", var));
-      } else {
-        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
-                          (`mem.free var;`, "var", var));
-      }
+      sc.addGuard(freeVar(var));
     }
     if (exportNamedTupleMembers) {
       if (auto tup = fastcast!(Tuple)(var.valueType())) {

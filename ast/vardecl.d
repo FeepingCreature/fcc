@@ -196,3 +196,5 @@ Expr mkTemp(LLVMFile lf, Expr ex, ref void delegate() post) {
   if (fastcast!(Literal) (ex)) return ex;
   return mkRef(lf, ex, post);
 }
+
+extern(C) Statement freeVar(Expr var);
