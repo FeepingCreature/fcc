@@ -737,7 +737,8 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   ctx.add("make-format", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of arguments to 'make-format': 1 expected");
     mixin(chaincast("ex: First argument for 'make-format': args[0]->ItrEntity: %.itr -> Expr"));
-    return fastalloc!(ItrEntity)(simpleFormat(ex));
+    bool alloc_ignore;
+    return fastalloc!(ItrEntity)(simpleFormat(ex, alloc_ignore));
   }));
   ctx.add("parse-ident", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-ident: 0 expected");

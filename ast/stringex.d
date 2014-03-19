@@ -54,8 +54,9 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           else throw new Exception(Format("No such variable: ", id, " in ", namespace()));
       }
       bool tryFormat(Expr ex) {
-        if (auto sf = simpleFormat(ex)) {
-          res.addArray(sf);
+        bool allocated;
+        if (auto sf = simpleFormat(ex, allocated)) {
+          res.addArray(sf, allocated);
           return true;
         } else if (auto fe = cast(Formatable) ex.valueType()) {
           res.addArray(fe.format(ex));
@@ -78,7 +79,8 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
 import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules, ast.fold;
-Expr simpleFormat(Expr ex) {
+Expr simpleFormat(Expr ex, out bool allocates) {
+  allocates = true;
   auto type = resolveType(ex.valueType());
   if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
     return buildFunCall(sysmod.lookup("itoa"), ex, "itoa");
@@ -136,6 +138,7 @@ Expr simpleFormat(Expr ex) {
     if (ar) et = ar.elemType;
     if (ea) et = ea.elemType;
     if (Single!(Char) == et) {
+      allocates = false;
       return ex;
     }
     // logln("et is ", et);
@@ -165,6 +168,8 @@ Expr simpleFormat(Expr ex) {
     });
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
+   
+  allocates = false; // cannot be sure for the rest
   
   // done separately because the interface->object cast crashes if it's null!
   if (gotImplicitCast(ex, Single!(HintType!(IntfRef)), (IType it) { return test(fastcast!(IntfRef)(resolveType(it))); })) {

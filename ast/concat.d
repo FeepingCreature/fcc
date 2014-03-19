@@ -8,6 +8,7 @@ import
 class ConcatChain : Expr {
   Array type;
   Expr[] arrays;
+  bool[] doIownThisArray; // do I have to free it after I've been evaluated?
   this(Expr[] exprs...) {
     if (!exprs.length) assert(false); // null type?!
     auto base = exprs.take();
@@ -26,7 +27,9 @@ class ConcatChain : Expr {
   override ConcatChain dup() {
     auto arrays = arrays.dup;
     foreach (ref ex; arrays) ex = ex.dup;
-    return new ConcatChain(arrays);
+    auto res = new ConcatChain(arrays);
+    res.doIownThisArray = doIownThisArray.dup;
+    return res;
   }
   mixin defaultIterate!(arrays);
   Expr collapse() {
@@ -40,11 +43,16 @@ class ConcatChain : Expr {
     }
     return this;
   }
-  void addArray(Expr ex) {
+  void addArray(Expr ex, bool freeAfterEvaluate = false) {
     Expr nuArray;
     if (fastcast!(StaticArray)~ ex.valueType()) nuArray = staticToArray(ex);
     else nuArray = ex;
-    nuArray = .collapse(nuArray);
+    
+    {
+      auto backup = nuArray;
+      nuArray = .collapse(nuArray);
+      freeAfterEvaluate &= nuArray is backup; // otherwise we just optimized away something that was PROBABLY an allocation TODO sanity check
+    }
     if (arrays.length) {
       auto se1 = fastcast!(StringExpr) (arrays[$-1]);
       auto se2 = fastcast!(StringExpr) (nuArray);
@@ -54,10 +62,15 @@ class ConcatChain : Expr {
       }
     }
     arrays ~= nuArray;
+    doIownThisArray ~= freeAfterEvaluate;
   }
   override {
     IType valueType() { return type; }
-    string toString() { return Format("~"[], arrays); }
+    string toString() {
+      auto mod = fastcast!(Module) (current_module());
+      if (mod !is sysmod) return Format("~", arrays, " <", doIownThisArray, ">");
+      return Format("~", arrays);
+    }
     void emitLLVM(LLVMFile lf) {
       mixin(mustOffset("1"));
       
@@ -119,7 +132,7 @@ class ConcatChain : Expr {
         "total"[], total
       ).emitLLVM(lf);
       cacheId = 0;
-      foreach (array; arrays) {
+      foreach (i, array; arrays) {
         if (array.valueType() == type.elemType) {
           /// res[offset] = cache[i];
           emitAssign(lf, getIndex(res, offset), reinterpret_cast(type.elemType, array));
@@ -137,6 +150,11 @@ class ConcatChain : Expr {
           stmt.emitLLVM(lf);
           /// offset = offset + cache[i].length;
           emitAssign(lf, offset, end);
+          /// cache[i].free;
+          auto mod = fastcast!(Module) (current_module());
+          if (mod !is sysmod && doIownThisArray[i]) { // no var.free in sysmod because hax
+            freeVar(c).emitLLVM(lf);
+          }
         }
       }
       res.emitLLVM(lf);

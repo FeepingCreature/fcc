@@ -82,7 +82,7 @@ class Socket {
     if (err == -1)
       raise new Error "While closing socket: $(CToString strerror errno)";
   }
-  void free() { boundAddr?.free(); }
+  void free() { boundAddr?.free; super.free; }
   /*Function: init*/
   void init(bool bare = false) {
     if (!bare) {
