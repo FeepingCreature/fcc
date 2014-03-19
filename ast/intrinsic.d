@@ -667,7 +667,8 @@ void setupSysmods() {
           i = 0;
         } else i++;
       }
-      if !res.length return source;
+      // ALWAYS allocate here! simplifies cleanup
+      // if !res.length return source;
       res ~= source;
       return res[];
     }
