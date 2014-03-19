@@ -96,6 +96,9 @@ void setupSysmods() {
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
+      // NOTE: the size parameter is NOT guaranteed to be the size something was allocated with (but it shouldn't be larger)
+      // the point of this is to allow the use of p in a freelist. (Only the first sz bytes, of course.)
+      // Freeing anywhere but the start of a memory range is still not allowed.
       void  free   (void* p, int sz = 0){ free_dg(p, sz); }
       /*MARKER*/
     }
@@ -231,37 +234,26 @@ void setupSysmods() {
       }
     }
     string itoa(int i) {
-      if i == -0x8000_0000 return "-2147483648"; // Very "special" case.
-      if i < 0 return "-" ~ itoa(-i);
-      if i == 0 return "0";
-      string res;
-      while i {
-        string prefix = "0123456789"[i%10 .. i%10+1];
-        res = prefix ~ res;
-        i /= 10;
-      }
-      return res;
+      int len = snprintf(null, 0, "%i", i);
+      auto res = new char[] $ len + 1;
+      snprintf(res.ptr, res.length, "%i", i);
+      return res[0..$-1];
     }
     string utoa(size_t s) {
-      if s == 0 return "0";
-      string res;
-      while s {
-        string prefix = "0123456789"[s%10 .. s%10+1];
-        res = prefix ~ res;
-        s /= 10;
-      }
-      return res;
+      int len = snprintf(null, 0, "%u", s);
+      auto res = new char[] $ len + 1;
+      snprintf(res.ptr, res.length, "%u", s);
+      return res[0..$-1];
     }
     string btoa(bool b) {
       if b return "true";
       return "false";
     }
     string ltoa(long l) {
-      auto foo = new char[] 32;
-      int length = snprintf(foo.ptr, foo.length, "%lli", l);
-      if (length > 0) return foo[0 .. length];
-      printf ("please increase the snprintf buffer %i\n", length);
-      _interrupt 3;
+      int len = snprintf(null, 0, "%lli", l);
+      auto res = new char[] $ len + 1;
+      snprintf(res.ptr, res.length, "%lli", l);
+      return res[0..$-1];
     }
     alias vec2f = vec(float, 2);
     alias vec3f = vec(float, 3);
@@ -636,7 +628,7 @@ void setupSysmods() {
     int fastfloor(float f) { return (int:f) - (*int*:&f) >>> 31; }
     void fastfloor3f(vec3f v, vec3i* res) {
       if (v.x > int.max || v.y > int.max || v.z > int.max) {
-        fail("fastfloor3f int conversion requested but there is actually no int equivalent for $v");
+        fail("fastfloor3f int conversion requested but there is actually no int equivalent for {$(ftoa v.x), $(ftoa v.y), $(ftoa v.z)}");
       }
       (vec4f*: &v).w = 0; // prevent fp error
       vec4i i = vec4i: *(vec4f*:&v); // cvttps2dq
