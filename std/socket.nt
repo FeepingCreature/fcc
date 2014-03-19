@@ -78,12 +78,17 @@ class Socket {
   Address boundAddr;
   /*Function: close*/
   void close() {
-    c.unistd.close(sockfd);
+    auto err = c.unistd.close(sockfd);
+    if (err == -1)
+      raise new Error "While closing socket: $(CToString strerror errno)";
   }
+  void free() { boundAddr?.free(); }
   /*Function: init*/
-  void init() {
-    sockfd = socket (AF_INET, SOCK_STREAM, 0);
-    linger(true, 30); // default: linger 30s
+  void init(bool bare = false) {
+    if (!bare) {
+      sockfd = socket (AF_INET, SOCK_STREAM, 0);
+      linger(true, 30); // default: linger 30s
+    }
   }
   /*Function: init*/
   void init(string domain, short port) {
@@ -187,7 +192,7 @@ class Socket {
   }
   /*Function: accept
   Once incoming connections occur, return a socket for them*/
-  Socket accept() using new Socket {
+  Socket accept() using new Socket (=>bare) {
     that.boundAddr = this.boundAddr.dup;
     auto hdl = that.boundAddr.getAddrHandle();
     int gotLength = hdl[1];
