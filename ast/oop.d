@@ -1085,6 +1085,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       }
       Extensible ext;
       void extend(Extensible e) {
+        if (!e) fail;
         if (ext) {
           if (auto os = fastcast!(OverloadSet) (ext)) {
             if (auto fun = fastcast!(Function) (e)) {
@@ -1119,23 +1120,31 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         } else if (orNull) return null;
         return fun;
       }
-      if (auto res = replaceWithOverrides(myfuns.lookup(str, base))) {
-        if (auto ext2 = fastcast!(Extensible) (res)) {
-          extend(ext2);
-        } else return res;
-      }
-      auto cl_offset = ownClassinfoLength();
-      foreach (intf; iparents) {
-        if (auto res = replaceWithOverrides(intf.lookupClass(str, cl_offset.dup, base))) {
-          // logln(this.name, " ", str, " => ", (fastcast!(Function)(res)).type);
-          auto obj = fastcast!(Object) (res);
+      // final class cannot have an intf function called on it that isn't implemented
+      // but it can inherit a super method (see below, if (parent))
+      if (finalClass) {
+        if (auto res = myfuns.lookupFinal(str, base)) {
+          extend(fastcast!(Extensible) (res));
+        }
+      } else {
+        if (auto res = replaceWithOverrides(myfuns.lookup(str, base))) {
           if (auto ext2 = fastcast!(Extensible) (res)) {
             extend(ext2);
-          } else return obj;
+          } else return res;
         }
-        cl_offset.delta += intf.clsize;
+        auto cl_offset = ownClassinfoLength();
+        foreach (intf; iparents) {
+          if (auto res = replaceWithOverrides(intf.lookupClass(str, cl_offset.dup, base))) {
+            // logln(this.name, " ", str, " => ", (fastcast!(Function)(res)).type);
+            auto obj = fastcast!(Object) (res);
+            if (auto ext2 = fastcast!(Extensible) (res)) {
+              extend(ext2);
+            } else return obj;
+          }
+          cl_offset.delta += intf.clsize;
+        }
+        delete cl_offset;
       }
-      delete cl_offset;
       // super constructors are masked!! only do this for constructors
       // if we actually override one.
       if (parent) {
