@@ -460,11 +460,11 @@ void ast_math_constr() {
       lookupOp("&", reinterpret_cast(Int, args[1]), mkInt(0x8000_0000))
     ));
   });
-  void addCIntrin(int arity, string funname, IType ret, string intrin) {
+  void addCIntrin(int arity, string funname, IType ret, string intrin, bool argsSameTypeAsReturn = true) {
     funcall_folds ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
       return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
-    }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr[] args) {
-      foreach (ref arg; args) {
+    }, stuple(intrin, ret, argsSameTypeAsReturn) /apply/ delegate Expr(string intrin, IType ret, bool argsSameTypeAsReturn, Expr[] args) {
+      if (argsSameTypeAsReturn) foreach (ref arg; args) {
         if (!gotImplicitCast(arg, ret, (IType it) { return test(ret == it); }))
           throw new Exception("invalid argument for intrinsic");
       }
@@ -487,6 +487,7 @@ void ast_math_constr() {
   addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
   addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");
   addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
+  addCIntrin(4, "prefetch", Single!(Void), "llvm.prefetch", false);
   
   bool isInt(IType it) { return test(Single!(SysInt) == it); }
   bool isSizeT(IType it) { return test(Single!(SizeT) == it); }

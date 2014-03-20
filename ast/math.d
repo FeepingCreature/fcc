@@ -773,14 +773,18 @@ class IntrinsicExpr : Expr {
           if (argstr.length) argstr ~= ", ";
           argstr ~= typeToLLVM(arg.valueType());
         }
-        lf.decls[name] = qformat("declare float @", name, " (", argstr, ")");
+        lf.decls[name] = qformat("declare ", typeToLLVM(vt), " @", name, " (", argstr, ")");
       }
       string argstr;
       foreach (arg; args) {
         if (argstr.length) argstr ~= ", ";
         argstr ~= qformat(typeToLLVM(arg.valueType()), " ", save(lf, arg));
       }
-      load(lf, "call ", typeToLLVM(vt), " @", name, " (", argstr, ")");
+      string callstr = qformat("call ", typeToLLVM(vt), " @", name, " (", argstr, ")");
+      if (Single!(Void) == vt) {
+        put(lf, callstr);
+        lf.push("void");
+      } else load(lf, callstr);
     }
   }
 }

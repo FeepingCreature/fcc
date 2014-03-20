@@ -1112,6 +1112,9 @@ void setupSysmods() {
         }
       }
     }
+    extern(C) void prefetch(void* address, bool write = false, int locality = 0, bool data = true) {
+      // no-op by default - turned into op by substitution with llvm intrinsic
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;
