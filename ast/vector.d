@@ -378,17 +378,42 @@ class FastVec3Norm : Expr {
         sum = save(lf, "fadd float ", sum, ", ", v1);
         sum = save(lf, "fadd float ", sum, ", ", v2);
       }
-      // see bottom of ast.math
-      if (once(lf, "intrinsic llvm.sqrt.f32")) {
-        lf.decls["llvm.sqrt.f32"] = qformat("declare float @llvm.sqrt.f32 (float)");
+      if (isX86()) {
+        if (once(lf, "intrinsic llvm.x86.sse.rsqrt.ss")) {
+          lf.decls["llvm.x86.sse.rsqrt.ss"] = qformat("declare <4 x float> @llvm.x86.sse.rsqrt.ss (<4 x float>)");
+        }
+        string ssereg = save(lf, "insertelement <4 x float> undef, float ", sum, ", i32 0");
+        // first approximation
+        string rsqrt = save(lf, "call <4 x float> @llvm.x86.sse.rsqrt.ss(<4 x float> ", ssereg, ")");
+        string f = save(lf, "extractelement <4 x float> ", rsqrt, ", i32 0");
+        // float half = 0.5f*f;
+        auto half = save(lf, "fmul float ", sum, ", 0.5");
+        // f = f*(1.5f-half*f*f);
+        half = save(lf, "fmul float ", half, ", ", f);
+        half = save(lf, "fmul float ", half, ", ", f);
+        half = save(lf, "fsub float 1.5, ", half);
+        f = save(lf, "fmul float ", half, ", ", f);
+        // d = (x, x, x, x)
+        string vec = "undef";
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", f, ", i32 0");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", f, ", i32 1");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", f, ", i32 2");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", f, ", i32 3");
+        // res = vec * d
+        load(lf, "fmul <4 x float> ", bv, ", ", vec);
+      } else {
+        // see bottom of ast.math
+        if (once(lf, "intrinsic llvm.sqrt.f32")) {
+          lf.decls["llvm.sqrt.f32"] = qformat("declare float @llvm.sqrt.f32 (float)");
+        }
+        auto root = save(lf, "call float @llvm.sqrt.f32(float ", sum, ")");
+        string vec = "undef";
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 0");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 1");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 2");
+        vec = save(lf, "insertelement <4 x float> ", vec, ", float 1.0, i32 3");
+        load(lf, "fdiv <4 x float> ", bv, ", ", vec);
       }
-      auto root = save(lf, "call float @llvm.sqrt.f32(float ", sum, ")");
-      string vec = "undef";
-      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 0");
-      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 1");
-      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 2");
-      vec = save(lf, "insertelement <4 x float> ", vec, ", float 1.0, i32 3");
-      load(lf, "fdiv <4 x float> ", bv, ", ", vec);
     }
   }
 }

@@ -29,6 +29,10 @@ bool isARM() {
   return !!platform_prefix.startsWith("arm"[]);
 }
 
+bool isX86() {
+  return !isARM(); // lel
+}
+
 version(Windows) static this() { platform_prefix = "i686-mingw32-"; }
 
 string[] extra_linker_args;
