@@ -20,6 +20,9 @@ void defineOp(string op, Expr delegate(Expr, Expr, Expr) dg) {
   defineOp(op, dg /apply/ delegate Expr(typeof(dg) dg, Expr[] list) { if (list.length != 3) return null; return dg(list[0], list[1], list[2]); });
 }
 
+alias Expr delegate(Expr) _EDE;
+extern(C) Expr assign_and_return(LValue lv, _EDE dg);
+
 Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
   bool reassign;
   auto pre = op.endsWith("="[]);
@@ -42,8 +45,12 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
     foreach (dg; *p)
       if (auto res = dg(exprs)) {
         if (reassign) {
-          if (lv) return fastalloc!(StatementAndExpr)(new Assignment (lv, res), exprs[0]);
-          else    return fastalloc!(StatementAndExpr)(fastalloc!(AssignmentM)(mv, res), exprs[0]);
+          if (lv) {
+            // make foo[i++] += thing work by caching the reference of the lv
+            return assign_and_return(lv, (Expr cached) { auto r = dg(cached ~ exprs[1..$]); if (!r) fail; return r; }); // see fcc.d
+          } else {
+            return fastalloc!(StatementAndExpr)(fastalloc!(AssignmentM)(mv, res), exprs[0]);
+          }
         } else {
           return res;
         }

@@ -1307,6 +1307,17 @@ extern(C) Expr _tmpize_maybe(Expr thing, E2ERdg dg, bool force) {
   return wurble;
 }
 
+// from ast.opers
+pragma(set_attribute, assign_and_return, externally_visible);
+extern(C) Expr assign_and_return(LValue lv, _EDE dg) {
+  // tmpize the reference, so that, say, foo[i++] += 5 works correctly
+  return tmpize_maybe(fastalloc!(RefExpr)(lv), delegate Expr(Expr refexpr) {
+    auto deref = fastalloc!(DerefExpr)(refexpr);
+    return fastalloc!(StatementAndExpr)(
+      fastalloc!(Assignment)(deref, dg(deref)),
+      deref);
+  });
+}
 
 string renderProgbar(int total, int current) {
   auto progbar = new char[total];

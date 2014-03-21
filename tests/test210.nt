@@ -1,0 +1,9 @@
+module test210;
+
+void main() {
+  auto test = new vec3f[] 4;
+  int i;
+  alias t = test[i++];
+  t += vec3f(1, 2, 3);
+  assert(i == 1, " ?? $i");
+}
