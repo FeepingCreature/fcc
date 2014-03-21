@@ -123,7 +123,7 @@ float atan(float x) { return atanf x; }
 /*Function: abs*/
 int abs(int i) { if i < 0 return -i; return i; }
 /*Function: abs*/
-float abs(float f) { if f < 0 return -f; return f; }
+float abs(float f) { return fabsf f; } // uses llvm intrinsic
 /*Function: abs*/
 double abs(double d) { if d < 0 return -d; return d; }
 
