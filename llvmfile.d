@@ -553,18 +553,22 @@ bool llvmTypeIs16Aligned(string s) {
   return false;
 }
 
-void splitstore(LLVMFile lf, string fromtype, string from, string totype, string to, bool addrspace1) {
+void splitstore(LLVMFile lf, string fromtype, string from, string totype, string to, bool addrspace1, bool nontemporal = false) {
   bool fromIsStruct = !!fromtype.endsWith("}"), toIsStruct = !!totype.endsWith("}");
   if (fromIsStruct != toIsStruct) fail(qformat("incompatible types: ", fromtype, " into ", totype));
   bool isStruct = fromIsStruct;
+  string nontemp;
+  if (nontemporal) {
+    nontemp = qformat(", !nontemporal ", addMetadata(lf, "i32 1"));
+  }
   if (!isStruct) {
     if (addrspace1) {
       string addrspacecast = "bitcast ";
       if (llvmver() >= 34) addrspacecast = "addrspacecast ";
       to = save(lf, addrspacecast, totype, "* ", to, " to ", totype, " addrspace(1)*");
-      put(lf, "store ", fromtype, " ", from, ", ", totype, " addrspace(1)* ", to);
+      put(lf, "store ", fromtype, " ", from, ", ", totype, " addrspace(1)* ", to, nontemp);
     } else {
-      put(lf, "store ", fromtype, " ", from, ", ", totype, "* ", to);
+      put(lf, "store ", fromtype, " ", from, ", ", totype, "* ", to, nontemp);
     }
     return;
   }

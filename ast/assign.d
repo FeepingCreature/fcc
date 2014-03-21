@@ -11,9 +11,11 @@ class _Assignment(T) : LineNumberedStatementClass {
   T target;
   Expr value;
   bool blind;
+  bool nontemporal;
   import tools.log;
-  this(T t, Expr e, bool force = false, bool blind = false) {
+  this(T t, Expr e, bool force = false, bool blind = false, bool nontemporal = false) {
     this.blind = blind;
+    this.nontemporal = nontemporal;
     auto tvt = t.valueType(), evt = e.valueType();
     if (!force && resolveType(tvt) != resolveType(evt)) {
       logln("Can't assign: "[], t);
@@ -44,13 +46,13 @@ class _Assignment(T) : LineNumberedStatementClass {
         auto basetype = typeToLLVM(target.valueType());
         if (true) {
           auto usf = is_unsafe_fast(); // if this is true, don't use addrspace(1)
-          splitstore(lf, typeToLLVM(value.valueType()), src, basetype, dest, usf?false:true);
+          splitstore(lf, typeToLLVM(value.valueType()), src, basetype, dest, usf?false:true, nontemporal);
           // string addrspacecast = "bitcast ";
           // if (llvmver() >= 34) addrspacecast = "addrspacecast ";
           // dest = save(lf, addrspacecast, basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
           // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)* ", dest);
         } else {
-          splitstore(lf, typeToLLVM(value.valueType()), src, typeToLLVM(target.valueType()), dest, false);
+          splitstore(lf, typeToLLVM(value.valueType()), src, typeToLLVM(target.valueType()), dest, false, nontemporal);
           // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
         }
       }
@@ -65,7 +67,12 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv; MValue mv;
   Expr ex;
-  if (rest(t2, "tree.expr _tree.expr.bin"[], &ex) && t2.accept("="[])) {
+  bool nontemporal;
+  bool mayNontemp() {
+    if (t2.accept("nontemporal")) nontemporal = true;
+    return true;
+  }
+  if (rest(t2, "tree.expr _tree.expr.bin"[], &ex) && mayNontemp() && t2.accept("="[])) {
     Expr value;
     IType[] its;
     if (!rest(t2, "tree.expr"[], &value)) {
@@ -117,9 +124,9 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     LineNumberedStatementClass res;
     try {
       if (lv)
-        res = fastalloc!(Assignment)(lv, value);
+        res = fastalloc!(Assignment)(lv, value, false, false, nontemporal);
       else
-        res = fastalloc!(AssignmentM)(mv, value);
+        res = fastalloc!(AssignmentM)(mv, value, false, false, nontemporal);
     } catch (Exception ex) {
       text.failparse(ex);
     }
