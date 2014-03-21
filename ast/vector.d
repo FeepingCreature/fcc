@@ -776,9 +776,13 @@ class VecOp : Expr {
           case "<<": llop = "shl"; break;
           case ">>": llop = "ashr"; break;
           case ">>>": llop = "lshr"; break;
+          case "xor": llop = "xor"; break;
           default: fail("vector op "~op~" not implemented!");
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
+          if (llop == "and" /or/ "or" /or/ "shl" /or/ "ashr" /or/ "lshr" /or/ "xor") {
+            throw new Exception(Format("LLVM op ", llop, " is not defined for float!"));
+          }
           if (llvmver() < 33) {
             llop = "f"~llop;
           } else {
@@ -916,6 +920,7 @@ static this() {
   defineOp("<<"[],"<<"/apply/ &handleVecOp);
   defineOp(">>"[],">>"/apply/ &handleVecOp);
   defineOp(">>>"[],">>>"/apply/ &handleVecOp);
+  defineOp("xor"[],"xor"/apply/ &handleVecOp);
   defineOp("=="[], &handleVecEquals);
   defineOp("<"[], &handleVecSmaller);
   /*foldopt ~= delegate Itr(Itr it) {
