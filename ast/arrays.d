@@ -477,7 +477,7 @@ static this() {
 Expr arrayCast(Expr ex, IType it) {
   if (!gotImplicitCast(ex, (IType it) { return test(fastcast!(Array) (resolveType(it))); }))
     return null;
-  auto ar1 = fastcast!(Array)~ resolveType(ex.valueType()), ar2 = fastcast!(Array)~ it;
+  auto ar1 = fastcast!(Array) (resolveType(ex.valueType())), ar2 = fastcast!(Array) (resolveType(it));
   if (!ar1 || !ar2) return null;
   return iparse!(Expr, "array_cast_convert_call"[], "tree.expr"[])
                 (`sys_array_cast!Res(from, sz1, sz2)`,
