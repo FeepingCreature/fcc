@@ -183,8 +183,8 @@ Expr mkSALit(IType ty, Expr[] exs) {
 Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr[] exs;
-  int[] statics;
-  bool isStatic = true;
+  // int[] statics;
+  // bool isStatic = true;
   IType type;
   Expr ex;
   if (!t2.bjoin(
@@ -196,8 +196,8 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
       else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }, false))
         t2.failparse("Invalid SA literal member; none of "[], types, " match "[], type);
       opt(ex);
-      if (auto ie = fastcast!(IntExpr) (ex)) statics ~= ie.num;
-      else isStatic = false;
+      // if (auto ie = fastcast!(IntExpr) (ex)) statics ~= ie.num;
+      // else isStatic = false;
       exs ~= ex;
     }
   )) t2.failparse("Failed to parse array literal"[]);
@@ -206,9 +206,9 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   if (!exs.length)
     return null;
   text = t2;
-  if (isStatic) {
+  /*if (isStatic) {
     return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ fastalloc!(StaticArray)(type, exs.length), fastcast!(CValue)~ fastalloc!(DataExpr)(cast(ubyte[]) statics));
-  }
+  }*/
   return fastcast!(Object) (mkSALit(type, exs));
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array"[], "52"[], "["[]);
