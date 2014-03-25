@@ -284,17 +284,22 @@ Expr mkCross(Expr[] exprs) {
     if (!_false)
       _false = iparse!(Expr, "get_false"[], "tree.expr"[])(`sys.false`);
   }
-  Expr[] inits;
-  foreach (ex; exprs) {
-    inits ~= fastalloc!(Filler)((fastcast!(Iterator)~ ex.valueType()).elemType());
-  }
   auto es = mkTupleExpr(exprs);
-  auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
-  auto tuptype = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs).valueType(); // flattened
-  
-  auto cross = new Cross;
-  cross.tup = fastcast!(Tuple) (tuptype);
-  return reinterpret_cast(cross, tup);
+  return tmpize_maybe(es, (Expr es) {
+    auto exprs = getTupleEntries(es, null, true);
+    
+    Expr[] inits;
+    foreach (ex; exprs) {
+      inits ~= fastalloc!(Filler)((fastcast!(Iterator)~ ex.valueType()).elemType());
+    }
+    
+    auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
+    auto tuptype = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs).valueType(); // flattened
+    
+    auto cross = new Cross;
+    cross.tup = fastcast!(Tuple) (tuptype);
+    return reinterpret_cast(cross, tup);
+  });
 }
 
 Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
