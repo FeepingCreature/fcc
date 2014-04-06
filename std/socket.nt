@@ -104,6 +104,23 @@ class Socket {
     // DO NOT USE SETSOCKOPT HERE !!!!!!!!!
     myTimeout = (true, t);
   }
+  void delegate(bool read) asyncfun;
+  /*Function: setAsyncFun
+  If set, recv/send will retry as long as they cannot send
+  or receive any data. However, they will also alternatingly call the
+  yield() function passed as a parameter.*/
+  void setAsyncFun(void delegate(bool read) yield) {
+    asyncfun = yield;
+    
+    import c.fcntl;
+    auto flags = sockfd.fcntl (F_GETFL);
+    if (yield) {
+      flags |= O_NONBLOCK;
+    } else {
+      flags &= int: ¬O_NONBLOCK;
+    }
+    sockfd.fcntl(F_SETFL, flags);
+  }
   /*Function: reuse
   Marks the socket as reusable*/
   void reuse(bool b) {
@@ -142,30 +159,44 @@ class Socket {
       if (!ss.isReady(this, =>read))
         raise new SocketError "read timed out";
     }
-    platform(default) {
-      auto res = .recv(sockfd, buf.ptr, buf.length, 0);
+    while (true) {
+      platform(default) {
+        auto res = .recv(sockfd, buf.ptr, buf.length, 0);
+      }
+      platform(*-mingw32) {
+        auto res = .recv(sockfd, char*:buf.ptr, buf.length, 0);
+      }
+      if (asyncfun && res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        // yield? in any case, retry
+        asyncfun?(true);
+        continue;
+      }
+      if (res <= 0) {
+        close;
+      }
+      return res;
     }
-    platform(*-mingw32) {
-      auto res = .recv(sockfd, char*:buf.ptr, buf.length, 0);
-    }
-    if (res <= 0) {
-      close;
-    }
-    return res;
   }
   /*Function: send
   Sends some of the argument, returning the number of bytes sent. */
   int send(ubyte[] buf) {
-    platform(default) {
-      auto res = .send(sockfd, buf.ptr, buf.length, 0);
+    while (true) {
+      platform(default) {
+        auto res = .send(sockfd, buf.ptr, buf.length, 0);
+      }
+      platform(*-mingw32) {
+        auto res = .send(sockfd, char*:buf.ptr, buf.length, 0);
+      }
+      if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        // yield? in any case, retry
+        asyncfun?(false);
+        continue;
+      }
+      if (res <= 0) {
+        close;
+      }
+      return res;
     }
-    platform(*-mingw32) {
-      auto res = .send(sockfd, char*:buf.ptr, buf.length, 0);
-    }
-    if (res <= 0) {
-      close;
-    }
-    return res;
   }
   /*Function: sendAll
   Sends all of the argument*/
@@ -198,14 +229,21 @@ class Socket {
     auto hdl = that.boundAddr.getAddrHandle();
     int gotLength = hdl[1];
     auto fam = hdl[0].sa_family;
-    that.sockfd = .accept(this.sockfd, hdl[0], &gotLength);
-    if (that.sockfd == -1) {
-      raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
+    while (true) {
+      auto res = .accept(this.sockfd, hdl[0], &gotLength);
+      if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        this.asyncfun?(true);
+        continue;
+      }
+      if (res == -1) {
+        raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
+      }
+      if (hdl[0].sa_family != fam || gotLength > hdl[1])
+        raise new Error ("Accepted socket address was of incompatible type to listening socket: "
+          ~"$(hdl[0].sa_family) ($gotLength), but expected $(fam) ($(hdl[1]))! ");
+      that.sockfd = res;
+      return that;
     }
-    if (hdl[0].sa_family != fam || gotLength > hdl[1])
-      raise new Error ("Accepted socket address was of incompatible type to listening socket: "
-        ~"$(hdl[0].sa_family) ($gotLength), but expected $(fam) ($(hdl[1]))! ");
-    return that;
   }
 }
 
