@@ -703,7 +703,7 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
       text = t2;
       return fastcast!(Object)(res);
     } else {
-      text.setError(obj, " does not form a valid iterator: value or advance missing. "[]);
+      text.setError(iter.valueType(), " is not a valid iterator: the property 'value' or 'advance' is missing. "[]);
       return null;
     }
   };

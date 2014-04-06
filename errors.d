@@ -141,7 +141,8 @@ class ParseEx : Exception {
     }
     
     res ~= Format(info._2, ":"[], info._0, ":"[], info._1, ": "[], msg);
-    if (rules) res ~= Format(" "[], rules);
+    // this is not actually useful anymore
+    // if (rules) res ~= Format(" "[], rules);
     if (emulateGCCOutput) {
       res = res.replace("\n", " "); // :(
       // there's probably a way elegant regex way but I cba
@@ -159,7 +160,9 @@ TLS!(Stuple!(string, string)) error;
 
 void failparse(T...)(string text, T t) {
   auto str = Format(t);
-  if (auto mesg = error()._1) str ~= ": "~mesg;
+  if (auto mesg = error()._1)
+    if (!str.endsWith(mesg)) // don't double-add mesg
+      str ~= ": "~mesg;
   throw fastalloc!(ParseEx)(text, str);
 }
 

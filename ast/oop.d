@@ -1066,6 +1066,8 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
           return fastcast!(Object) (mkString(name));
         if (name == "__mangle"[])
           return fastcast!(Object) (mkString(mangle_id));
+        // logln("null base?? ", str, " in ", this);
+        return null;
       }
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
