@@ -23,7 +23,13 @@ class Coroutine {
   void delegate(void delegate() yield) task;
   void exit() { leave(); }
   bool complete;
+  UnrecoverableError err;
   void run() {
+    set-handler(UnrecoverableError uerr) {
+      this.err = uerr;
+      invoke-exit "exit";
+    }
+    define-exit "exit" exit();
     task(&exit);
     complete = true;
     exit();
@@ -41,12 +47,17 @@ class Coroutine {
     (*newdata) = (copy_tls(), mem);
     makecontext(&ctx, void*: &call, size-of (void delegate(), void*)/size-of int, &run, newdata);
   }
+  void free() {
+    munmap stack.(ptr, length);
+    super.free;
+  }
   void enter() {
     ucontext_t prev;
     leave = \{
       if (swapcontext(&ctx, &prev) == -1) raise new ErrnoError;
     }
     if (swapcontext(&prev, &ctx) == -1) raise new ErrnoError;
+    if (err) { auto takeErr = err; err = null; raise new Error "[--coroutine--]\n$takeErr"; }
   }
 }
 
