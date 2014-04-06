@@ -88,6 +88,8 @@ template UnrolledDoubleLinkedList(T) {
     // data, from (inclusive), to (exclusive)
     BackingT backing;
     alias iterator = UDLLIterator:irefs backing.iterator;
+    int length;
+    alias hasData = !!length;
     void pushHead(T t) {
       if (backing.(!hasData || head.data.(_2 == Length))) {
         T x Length init;
@@ -95,6 +97,7 @@ template UnrolledDoubleLinkedList(T) {
       }
       backing.head.data.(_0[_2]) = t;
       backing.head.data._2 ++;
+      length ++;
     }
     void free() { backing.free; }
     void pushTail(T t) {
@@ -104,6 +107,7 @@ template UnrolledDoubleLinkedList(T) {
       }
       backing.tail.data._1 --;
       backing.tail.data.(_0[_1]) = t;
+      length ++;
     }
     Reference getHead() {
       assert(backing.hasData);
@@ -123,6 +127,7 @@ template UnrolledDoubleLinkedList(T) {
       while (backing.(head && head.data.(_1 == _2))) backing.popHead;
       assert !! backing.hasData;
       backing.head.data._2 --;
+      length --;
       return backing.head.data.(_0[_2]);
     }
     T popTail() {
@@ -130,6 +135,7 @@ template UnrolledDoubleLinkedList(T) {
       assert !! backing.hasData;
       auto res = backing.tail.data.(_0[_1]);
       backing.tail.data._1 ++;
+      length --;
       return res;
     }
   }
