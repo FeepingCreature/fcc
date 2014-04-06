@@ -29,7 +29,8 @@ class Options {
     op.missing = required;
     options ~= op;
     flags ~= flag;
-    if (cb2) { flags ~= ":"; }
+    if (cb && cb2) { flags ~= "::"; }
+    else if (cb2) { flags ~= ":"; }
   }
   void printHelp() {
     writeln "$executable options: ";
@@ -91,8 +92,13 @@ class Options {
     for (int count, Option opt) <- zip(ints, this.options) {
       if (opt.longopt) {
         c.getopt.option longop;
-        longop.(name,                  has_arg,                                                            flag,      val) =
-               (toStringz opt.longopt, [c.getopt.no_argument, c.getopt.required_argument][!!opt.callback], int*:null, count);
+        
+        auto argmode = c.getopt.no_argument;
+        if (opt.callback && opt.callback2) argmode = c.getopt.optional_argument;
+        else if (opt.callback) argmode = c.getopt.required_argument;
+        
+        longop.(name,                  has_arg, flag,      val) =
+               (toStringz opt.longopt, argmode, int*:null, count);
         options ~= longop;
       }
     }
@@ -110,9 +116,9 @@ class Options {
         for int i <- 0..this.options.length {
           alias opt = this.options[i];
           if (opt.shortopt == [char:ubyte:res]) {
-            if (opt.callback) { opt.callback(arg); }
-            else if (arg) raise new Error "-$(opt.shortopt) does not take an argument";
-            else if (opt.callback2) { opt.callback2(); }
+            if (opt.callback && arg) { opt.callback(arg); }
+            else if (opt.callback2 && !arg) { opt.callback2(); }
+            else if (opt.callback2 && arg) raise new Error "-$(opt.shortopt) does not take an argument";
             else raise new Error "no delegate found for $(opt.shortopt) ($(opt.(callback, callback2)))";
             matched = true;
             opt.missing = false;
