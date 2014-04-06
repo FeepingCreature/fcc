@@ -44,6 +44,8 @@ class Semaphore {
   sem_t hdl;
   /*Function: init*/
   void init() { sem_init(&hdl, false, 0); }
+  /*Function: free*/
+  void free() { sem_destroy(&hdl); super.free(); }
   import std.file, c.errno;
   /*Function: claim*/
   void claim() { while (sem_wait(&hdl) == -1) { if (errno == EINTR) continue; raise new ErrnoError("sem_wait"); } }
@@ -98,6 +100,7 @@ platform(default) {
   extern(C) int pthread_mutex_lock (pthread_mutex_t*);
   extern(C) int pthread_mutex_trylock (pthread_mutex_t*);
   extern(C) int pthread_mutex_unlock (pthread_mutex_t*);
+  extern(C) int pthread_mutex_destroy (pthread_mutex_t*);
   struct pthread_rwlock_t { ubyte x 56  filler; }
   extern(C) {
     int pthread_rwlock_init(pthread_rwlock_t* rwlock, void* attr);
@@ -113,6 +116,8 @@ class Mutex {
   pthread_mutex_t mutex;
   /*Function: init*/
   void init() { pthread_mutex_init (&mutex, null); }
+  /*Function: free*/
+  void free() { pthread_mutex_destroy (&mutex); super.free(); }
   /*Function: lock*/
   void lock() { pthread_mutex_lock &mutex; }
   /*Function: tryLock*/

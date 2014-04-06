@@ -258,7 +258,7 @@ Socket connect(string domain, short port) using new Socket {
 class sockreader : Iterator!ubyte[] {
   Socket sock;
   bool done;
-  ubyte x 256  buf;
+  ubyte x 4096  buf;
   void init(Socket s) sock = s;
   bool advance() {
     auto size = sock.recv buf[];
