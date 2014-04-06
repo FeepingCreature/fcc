@@ -788,3 +788,37 @@ class IntrinsicExpr : Expr {
     }
   }
 }
+
+class MinFloat : Expr {
+  Expr f1, f2;
+  this(Expr a, Expr b) { f1 = a; f2 = b; }
+  mixin defaultIterate!(f1, f2);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Float); }
+    MinFloat dup() { return fastalloc!(MinFloat)(f1.dup, f2.dup); }
+    string toString() { return qformat("minf(", f1, ", ", f2, ")"); }
+    void emitLLVM(LLVMFile lf) {
+      auto l1 = save(lf, f1), l2 = save(lf, f2);
+      auto cmp = save(lf, "fcmp olt float ", l1, ", ", l2);
+      load(lf, "select i1 ", cmp, ", float ", l1, ", float ", l2);
+    }
+  }
+}
+
+class MaxFloat : Expr {
+  Expr f1, f2;
+  this(Expr a, Expr b) { f1 = a; f2 = b; }
+  mixin defaultIterate!(f1, f2);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Float); }
+    MinFloat dup() { return fastalloc!(MaxFloat)(f1.dup, f2.dup); }
+    string toString() { return qformat("maxf(", f1, ", ", f2, ")"); }
+    void emitLLVM(LLVMFile lf) {
+      auto l1 = save(lf, f1), l2 = save(lf, f2);
+      auto cmp = save(lf, "fcmp ogt float ", l1, ", ", l2);
+      load(lf, "select i1 ", cmp, ", float ", l1, ", float ", l2);
+    }
+  }
+}

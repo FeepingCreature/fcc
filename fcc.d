@@ -460,6 +460,14 @@ void ast_math_constr() {
       lookupOp("&", reinterpret_cast(Int, args[1]), mkInt(0x8000_0000))
     ));
   });
+  
+  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "fminf" || fun.name == "[wrap]fminf") && fun.extern_c;
+  }, delegate Expr(Expr[] args) { return new MinFloat(args[0], args[1]); });
+  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "fmaxf" || fun.name == "[wrap]fmaxf") && fun.extern_c;
+  }, delegate Expr(Expr[] args) { return new MaxFloat(args[0], args[1]); });
+  
   void addCIntrin(int arity, string funname, IType ret, string intrin, bool argsSameTypeAsReturn = true) {
     funcall_folds ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
       return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
