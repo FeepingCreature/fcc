@@ -6,6 +6,7 @@ import c.stdlib, c.unistd, c.errno;
 import std.string, std.util, std.file;
 
 alias C_system = system;
+extern(C) int pipe2(int* pipefd, int flags); // _GNU_SOURCE
 
 struct ShellErrorCode {
   int value;
@@ -32,7 +33,7 @@ platform(default) {
     bool hup, done; int fdslength;
     string infotext;
     Iterator!string input; string inbuffer;
-    char x 128 buf;
+    char x 4096 buf;
     pid_t child;
     int wait() {
       int res;
@@ -48,9 +49,16 @@ platform(default) {
       }
     }
     void init(string cmd, string[] args, Iterator!string input) {
+      import c.fcntl;
       infotext = "'$cmd $args'";
-      pipe hdl_sysward; // self -> system()
-      pipe hdl_selfward; // system() -> self
+      void keepopen(int fd) {
+        auto flags = fd.fcntl(F_GETFD);
+        fd.fcntl(F_SETFD, flags & int:¬O_CLOEXEC);
+      }
+      pipe2 (hdl_sysward, O_CLOEXEC); // self -> system()
+      pipe2 (hdl_selfward, O_CLOEXEC); // system() -> self
+      keepopen hdl_sysward[0];
+      keepopen hdl_selfward[1];
       
       char* fp = malloc(cmd.length + 1);
       fp[0..cmd.length] = cmd;
@@ -67,16 +75,17 @@ platform(default) {
       
       child = fork();
       if (child == 0) {
-        .close hdl_sysward[1];
-        .close hdl_selfward[0];
         dup2(hdl_sysward[0], 0); // overwrite standard input
         dup2(hdl_selfward[1], 1); // overwrite standard output
         auto res = execvp(fp, argv);
         if (res == -1) exit(-errno);
         exit(res);
       }
-      .close hdl_sysward[0]; // read side
-      .close hdl_selfward[1]; // write side
+      if (0 != .close hdl_sysward[0]) fail; // read side
+      if (0 != .close hdl_selfward[1]) fail; // write side
+      // writeln "$infotext start: [closed $(hdl_sysward[0]) -> $(hdl_sysward[1])] [$(hdl_selfward[0]) <- closed $(hdl_selfward[1])]";
+      hdl_sysward [0] = 0;
+      hdl_selfward[1] = 0;
       fdslength = 2;
       this.input = input;
     }
@@ -85,8 +94,14 @@ platform(default) {
       waitpid(child, null, 0);
     }
     bool advance() {
+      if (done) return false;
       UnreliableIterator!string uni;
       if (!!input) uni = type-of uni: input;
+      void closeLeftovers() {
+        ref a = hdl_sysward[1], b = hdl_selfward[0];
+        if (a != -1) { .close a; a = -1; }
+        if (b != -1) { .close b; b = -1; }
+      }
       while !done { // while we still have data to write .. 
         pollfd x 2 fds;
         fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
@@ -98,7 +113,7 @@ platform(default) {
         auto hits = poll(fds.ptr, my-fdslength, -1);
         
         // don't quit yet - there may still be data to be read!
-        if (fds[0].revents & POLLHUP) {
+        if (fds[0].revents & POLLHUP && !hup) {
           hup = true;
           complete;
         }
@@ -112,24 +127,32 @@ platform(default) {
             return true;
           }
           done = true;
-          complete;
+          if (!hup) complete;
+          if (size == 0) {
+            // writeln "$infotext read finished, close $(hdl_selfward[0])";
+            if (0 != .close hdl_selfward[0]) fail;
+            hdl_selfward[0] = -1;
+          }
           return false;
         }
         void handleWrite() {
           if (!inbuffer.length) {
             if (!input || !input.advance()) {
+              input = null;
               // no more data to write
-              .close hdl_sysward[1];
+              // writeln "$infotext write finished, close $(hdl_selfward[0])";
+              if (0 != .close hdl_sysward[1]) fail;
+              hdl_sysward[1] = -1;
               fdslength = 1;
               return;
             }
-            assert(input.value.length != 0, "input claimed to advance but data is null");
             inbuffer = input.value;
+            assert(inbuffer.length != 0, "input claimed to advance but data is null");
           }
           import std.math;
           auto res = C_write inbuffer.(hdl_sysward[1], ptr, min(4096, length));
-          if res < 0
-            raise new ReadbackError "Writing to stream failed! ";
+          if res == -1
+            raise new ReadbackError "Writing from $input to '$infotext' failed: $(CToString strerror errno)";
           inbuffer = inbuffer[res .. $];
         }
         bool active;
@@ -142,9 +165,10 @@ platform(default) {
           }
         }
         // basically done.
-        if (!active && hup) return false;
+        if (!active && hup) { closeLeftovers; return false; }
       }
       complete;
+      closeLeftovers;
       return false;
     }
   }
