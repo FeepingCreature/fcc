@@ -350,3 +350,54 @@ template roll(T) {
   }
   auto roll(T t) { return rollwrap:t; }
 }
+
+template breakIter(T) {
+  class BreakIterator : Iterator!T {
+    Iterator!void[] sup;
+    void[auto~] buffer;
+    int offset;
+    alias buffer_left = buffer[offset .. $];
+    bool sup_done;
+    void init(Iterator!void[] sup) { this.sup = sup; }
+    override void free() {
+      buffer.free;
+      super.free();
+    }
+    bool advance() {
+      import c.string;
+      alias sz = size-of T;
+      void smart_append(void[] v) {
+        bool tryit() {
+          if (offset + v.length <= buffer.capacity) {
+            buffer ~= v; // still got enough space
+            return true;
+          }
+          return false;
+        }
+        if (tryit()) return;
+        if (offset) {
+          // recompress
+          memmove(buffer.ptr, buffer_left.(ptr, length));
+          buffer.length -= offset;
+          offset = 0;
+          if (tryit()) return;
+        }
+        buffer ~= v;
+      }
+      while (buffer_left.length < sz) {
+        if (sup_done) {
+          if (!buffer_left.length) { free; return false; }
+          raise new Error "BreakIterator length mismatch: currently available $(buffer_left.length) (and sup is done), but size of $(string-of T) is $sz";
+        }
+        if (auto nval <- sup) smart_append(nval);
+        else sup_done = true;
+      }
+      value = *T*: buffer_left.ptr;
+      offset += sz;
+      return true;
+    }
+  }
+  auto breakIter(Iterator!void[] sup) {
+    return new BreakIterator sup;
+  }
+}
