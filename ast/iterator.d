@@ -692,7 +692,10 @@ Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb
     }
     if (t2.accept("ref"[])) isRefDecl = true;
     else if (!t2.accept("auto"[])) {
-      auto terrible_performance_improvement_hack = t2.between("", ";").find("<-") == -1;
+      string a = t2.between("", ";");
+      string b = t2.between("", "}");
+      if (!a || b && b.length < a.length) a = b;
+      auto terrible_performance_improvement_hack = a.find("<-") == -1;
       if (terrible_performance_improvement_hack || !rest(t2, "type"[], &newVarType))
         goto withoutIterator;
     }
