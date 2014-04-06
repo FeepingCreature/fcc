@@ -152,7 +152,8 @@ Returns the directory component of its argument*/
 string basedir(string file) {
   if file.endsWith "/" return file;
   auto slashpos = file.rfind("/");
-  if (!slashpos) raise new Error "No base dir in $file";
+  // if (!slashpos) raise new Error "No base dir in $file";
+  if (!slashpos) return ".";
   return file[0..slashpos+1];
 }
 
@@ -172,7 +173,8 @@ string relativePathAt(string target, string where) {
     parts-origin = parts-origin[1..$];
   }
   string res = ".".dup;
-  for 0..parts-origin.length {
+  for auto origin <- parts-origin {
+    if (origin == ".") continue; // no need to undo
     onSuccess[res] res.free;
     res = res.sub ".."; // undo path
   }
@@ -219,6 +221,8 @@ string sub(string path1, path2) {
   // TODO: win32 special handling?
   if path2.startsWith "/" return path2;
   if path1.endsWith "/" return "$path1$path2";
+  if (path1 == ".") return path2;
+  if (path2 == ".") return path1;
   return "$path1/$path2";
 }
 
