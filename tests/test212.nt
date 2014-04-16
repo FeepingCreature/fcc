@@ -1,0 +1,7 @@
+module test212;
+
+void main() {
+  assert(0 == sum [for 0..0: 1]);
+  assert(4 == sum [for 0..4: 1]);
+  assert(5 == sum [for 0..5: 1]);
+}

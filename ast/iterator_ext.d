@@ -618,15 +618,16 @@ class SumExpr : Expr {
         {
           auto i2 = iter;
           T temp;
-          eval var <- i2;
-          int left = i2.length / 4;
-          for 0..left {
-            eval auto val <- i2; var += val;
-            eval val <- i2; var += val;
-            eval val <- i2; var += val;
-            eval val <- i2; var += val;
-          }
-          while temp <- i2 { var += temp; }
+          if (var <- i2) {
+            int left = i2.length / 4;
+            for 0..left {
+              eval auto val <- i2; var += val;
+              eval val <- i2; var += val;
+              eval val <- i2; var += val;
+              eval val <- i2; var += val;
+            }
+            while temp <- i2 { var += temp; }
+          } else var = 0;
         } `, namespace(), "iter"[], ex, "T"[], iter.elemType(), "var"[], var);
         stmt.emitLLVM(lf);
       } else {
@@ -652,10 +653,10 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   IType[] tried;
-  if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }, false))
-    text.failparse("Cannot convert "[], ex, " to valid iterator"[]);
+  if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(Iterator) (it); }, false))
+    text.failparse("Cannot convert "[], ex.valueType(), " to iterator"[]);
   
-  return fastalloc!(SumExpr)(fastcast!(RichIterator)~ ex.valueType(), ex);
+  return fastalloc!(SumExpr)(fastcast!(Iterator)~ ex.valueType(), ex);
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum"[], null, "sum"[]);
 
