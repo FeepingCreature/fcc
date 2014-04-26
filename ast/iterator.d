@@ -69,6 +69,11 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
     string llvmSize() { return "4"; }
     string llvmType() { return "i32"; }
     string mangle() { return Format("constint_range_"[], from, "_to_"[], to).replace("-"[], "_minus_"[]); }
+    bool opEquals(IType it) {
+      auto cir = fastcast!(ConstIntRange)(it);
+      if (!cir) return false;
+      return cir.from == this.from && cir.to == this.to;
+    }
     Expr currentValue(Expr ex) {
       return reinterpret_cast(Single!(SysInt), ex);
     }
