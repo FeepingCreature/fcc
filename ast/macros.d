@@ -631,6 +631,13 @@ extern(C) void fcc_initTenth() {
     }
     return fastcast!(IntExpr)(ex)?NonNilEnt:NilEnt;
   }));
+  rootctx.add("const-int-to-number", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'const-int-to-number': 1 expected");
+    mixin(chaincast("ex: Arg to 'const-int-to-number': args[0]->ItrEntity: %.itr->Expr"));
+    ex = collapse(ex);
+    if (auto ie = fastcast!(IntExpr)(ex)) return fastalloc!(Integer)(ie.num);
+    tnte("Integer was not compile-time constant: ", ex);
+  }));
   rootctx.add("access-const-int-range", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'access-const-int-range': 1 expected");
     mixin(chaincast("ty: Arg to 'access-const-int-range': args[0]->TypeEntity: %.ty"));
