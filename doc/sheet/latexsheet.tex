@@ -5,6 +5,7 @@
 \usepackage{verbatim}
 \usepackage[landscape]{geometry}
 \usepackage[framemethod=tikz]{mdframed}
+\usepackage{csquotes}
 %\usepackage[style=1]{mdframed}
 \usepackage{color}
 \usepackage{listings}
@@ -142,7 +143,7 @@ c.b += c.a;
 
 \end{segment}
 \mysection{Types}
-Types indicate the memory layout and "meaning" of a value.
+Types indicate the memory layout and \enquote{meaning} of a value.
 \begin{segment}{Basic Types}
 The following \important{basic types} exist:\\
 \begin{tabular}{@{}ll@{}}
@@ -207,7 +208,7 @@ Example tuples:
 (int, float, (string, string))
 \end{lstlisting}
 
-There is no such thing as a one-sized tuple.
+There is no such thing as a one-sized tuple. This is to avoid ambiguity when using parens to change precedence.
 \end{segment}
 \begin{segment}{array}
 Arrays are equivalent to
@@ -230,9 +231,9 @@ Capacity indicates the amount of space allocated at the location starting with \
 Appending to an extended array makes use of the capacity, where possible; otherwise, new memory
 will be allocated.
 
-Managed arrays are equivalent to extended arrays. The difference is, when appending to a managed
-array causes a new allocation, the old memory will be freed. This is also known as an "appender"
-or "array builder".
+Managed arrays have the same structure as extended arrays. The difference is, when appending to a managed
+array causes a new allocation, the old memory will be freed. This is also known as an
+\enquote{appender} or \enquote{array builder}.
 
 \end{segment}
 
@@ -245,7 +246,7 @@ that all strings are UTF-8. If you are not using UTF-8, you are probably making 
 
 \begin{segment}{Conditionals}
 Conditionals can be either true or false. A quick way to explicitly convert any expression to a
-conditional is the \texttt{!!} "operator", since negation converts any value to a truth value,
+conditional is the \texttt{!!} \enquote{operator}, since negation converts any value to a truth value,
 \texttt{!!} or double negation converts any expression to the equivalent bool. This is only necessary
 when assigning to a bool variable, not in \texttt{if} or \texttt{while} statements.
 
@@ -254,11 +255,12 @@ the conditional \texttt{expr != null}.
 
 If \texttt{a} and \texttt{b} are expressions, \texttt{a CMP b} is a conditional, where
 \texttt{CMP} may be one of \texttt{== != is < > <= >= <>= !< !> !<= !>= !<>=}, and the meaning of each
-operator is equivalent to its comparative symbols "or"ed together. Example: \texttt{!<>=} means "not
-smaller, greater or equal", though this is only relevant for exotic float numbers such as NaN.
+operator is equivalent to its comparative symbols \enquote{or}ed together. Example: \texttt{!<>=} means
+\enquote{not smaller, greater or equal}, though this is only relevant for
+exotic float numbers such as NaN.
 
 If \texttt{a} and \texttt{b} are conditionals, \texttt{a CMP b} is a conditional, where \texttt{CMP}
-is \texttt{\&\&} or \texttt{||}: boolean "and" and "or". Note that evaluation is short-circuiting.
+is \texttt{\&\&} or \texttt{||}: boolean \enquote{and} and \enquote{or}. Note that evaluation is short-circuiting.
 
 The difference between \texttt{==} and \texttt{is} is that \texttt{==} checks for \emph{equality},
 and  \texttt{is} checks for \emph{identity}. For instance, two strings at separate areas in memory
@@ -288,29 +290,29 @@ Numbers, despite being \texttt{int}, implicitly convert to smaller types when th
 byte b = 125;
 \end{lstlisting}
 
-String literals implicitly convert to pointers to char. This is intended to be used with C libraries.
-To ensure this is safe, all string literals are zero-terminated. The terminating zero is not
-counted as part of the string.
+String literals implicitly convert to \texttt{char*} for compatibility with C libraries.
+This is safe, because all string literals are zero-terminated. The terminating zero is not
+counted in the length of the string.
 
 \end{segment}
 
 \begin{segment}{Combined Expressions}
 
-Arithmetic expressions ($a+b$, $a-b$, $a*b$, $a/b$, $a\%b$, $a$ xor $b$, $a \& b$, $a | b$,
-$a << b$, $a >> b$, $a >>> b$)
-have the type \texttt{int} when the terms ($a$ and $b$) are \texttt{int} or below; otherwise, the type of the
+Arithmetic expressions (\texttt{a + b}, \texttt{a - b}, \texttt{a * b}, \texttt{a / b}, \texttt{a \% b}, \texttt{a xor b},
+\texttt{a \& b}, \texttt{a | b}, \texttt{a << b}, \texttt{a >> b}, \texttt{a >>> b})
+have the type \texttt{int} when the terms (\texttt a and \texttt b) are \texttt{int} or below; otherwise, the type of the
 largest term is used.
 
-There are also two unary operators, $!a$ and $-a$, to boolean-negate and numeric-negate respectively.
+There are also three unary operators: \texttt{!a} to negate a truth value, \texttt{-a} to negate a number, and \texttt{$\neg$a} to negate the bits of an unsigned number.
 
 \end{segment}
 
 \begin{segment}{casts}
 Casts are conversions between one type and another.
 
-They take the form: \texttt{Type : expression}
+The syntax \texttt{Type:expression} casts \texttt{expression} to \texttt{Type}.
 
-Casts are a "dwim operation": they try to be smart. For instance, casting
+Casts are \enquote{DWIM}; they try to be smart. For instance, casting
 float to int or int to float converts the data instead of blindly reinterpreting it.
 
 \texttt{float:2} is a \important{conversion cast}.
@@ -327,7 +329,7 @@ byte b = byte: int: 125;
 The following is \emph{not} equivalent:
 
 \begin{lstlisting}
-int i = 125;
+int  i = 125;
 byte b = byte: i;
 \end{lstlisting}
 Though appearing identical, this code actually performs a conversion cast, which may lose data.
@@ -339,35 +341,33 @@ As a general rule, \textbf{implicit casts never lose data}.
 
 Arithmetic follows the following precedence rules, in order from higher to lower:
 \begin{itemize}
-\item The "duplicate" operator: $x$
-\item The shift operators: $<<$, $>>$ and $>>>$
-\item modulo: $\%$
-\item binary-and: $\&$
-\item binary-or: $|$
-\item binary-exclusive or: $xor$
-\item multiplication and division: $*$ and $/$
-\item addition and subtraction: $+$ and $-$
+\item The \enquote{duplicate} operator: \texttt x
+\item The shift operators: \texttt{<<}, \texttt{>>} and \texttt{>>>}
+\item modulo: \texttt \%
+\item binary-and: \texttt \&
+\item binary-or: \texttt |
+\item binary-exclusive or: \texttt{xor}
+\item multiplication and division: \texttt * and \texttt /
+\item addition and subtraction: \texttt + and \texttt -
 \end{itemize}
+
+% \vspace{6pt}
+
 Parens $()$ can be used to force precedence.
 \end{segment}
 \begin{segment}{\$ and \#}
 
-The $\#$ symbol is equivalent to putting everything left of it into parens:
+The \texttt{\#} symbol is equivalent to putting everything left of it into parens:
 
-$a \# b \Rightarrow (a) b$.
+\texttt{a \# b} $\Rightarrow$ \texttt{(a) b}.
 
-The $\$$ symbol is equivalent to putting everything right of it into parens:
+The \texttt{\$} symbol is equivalent to putting everything right of it into parens:
 
-$a \$ b \Rightarrow a (b)$.
+\texttt{a \$ b} $\Rightarrow$ \texttt{a (b)}.
 
-$\$$ takes precedence over $\#$.
+\texttt{\$} takes precedence over \texttt{\#}.
 \end{segment}
-\begin{segment}{pointer operations}
-\texttt{*p} dereferences a pointer. If the type of \texttt{p} is \texttt{T*},
-then the type of \texttt{*p} is \texttt{T}.\\
-\texttt{\&l} references an expression, creating a pointer. The expression must have an address.
-If the type of \texttt{l} is \texttt{T}, the type of \texttt{\&l} is \texttt{T*}.
-\end{segment}
+
 \begin{segment}{calls}
 
 Functions, global or nested, struct member functions, class member functions, function pointers
@@ -390,8 +390,15 @@ Note that the function can also be written as\\ \texttt{void fun(int a, b, c)}.
 
 \end{segment}
 
-\begin{segment}{variable declarations}
-Variable declarations can be used as expressions.
+\begin{segment}{tuples}
+A tuple value works just like a tuple type. 
+\begin{lstlisting}
+(int, (int, float)) variable
+  = (2, (3, 4.0f));
+\end{lstlisting}
+The type of a tuple value is the tuple of its values' types.\\
+Note that in order to avoid collision with parens used to disambiguate arithmetic, there is
+no such thing as a one-element tuple. The type of \texttt{(4)} is \texttt{int}, not \texttt{(int)}.
 \end{segment}
 
 \begin{segment}{\emph{new} expressions}
@@ -407,6 +414,32 @@ Example: \texttt{int i = 5; return new \textbackslash\{ return i; \};}
 \end{itemize}
 \end{segment}
 
+\begin{segment}{pointer operations}
+\texttt{*p} dereferences a pointer. If the type of \texttt{p} is \texttt{T*},
+then the type of \texttt{*p} is \texttt{T}.\\
+\texttt{\&l} references an expression, creating a pointer. The expression must have an address.
+If the type of \texttt{l} is \texttt{T}, the type of \texttt{\&l} is \texttt{T*}.
+\end{segment}
+
+\begin{segment}{variable declarations}
+Variable declarations can be used as expressions. Their value is the variable being declared.
+
+% \begin{lstlisting}
+% if (int i = someFunction()) {
+%   writeln "$i";
+% }
+% \end{lstlisting}
+% // or equivalently
+% { int i = someFunction();
+%   if (i) { writeln "$i"; }
+% }
+% \end{lstlisting}
+% 
+% It is common in C-like languages for assignment to be an expression, leading to an error
+% where people write \texttt{if (a = 5)} when they mean \texttt{if (a == 5)}. Variable declaration expressions
+% replace this idiom with a safer one.
+\end{segment}
+
 \begin{segment}{function pointers and delegates}
 The address of a function is taken with the \texttt{\&} operator. This creates a function pointer
 with the return type and parameter types of the function.
@@ -414,7 +447,7 @@ with the return type and parameter types of the function.
 When taking the address of a class or struct member function, or a nested function, which can access
 contextual data (the class or struct, or the surrounding function's stackframe), an additional pointer
 must be carried. This creates a \important{delegate} with the return type and parameter types of the 
-member function. Delegates are known as "fat pointers" in other languages. Heap-allocated delegates
+member function. Delegates are known as \enquote{fat pointers} in other languages. Heap-allocated delegates
 (see above, \emph{new} expressions) are similar to closures.\\
 
 The following code is equivalent.
@@ -433,17 +466,6 @@ void main() {
 }
 \end{lstlisting}
 
-\end{segment}
-
-\begin{segment}{tuples}
-A tuple value works just like a tuple type. 
-\begin{lstlisting}
-(int, (int, float)) variable
-  = (2, (3, 4.0f));
-\end{lstlisting}
-The type of a tuple value is the tuple of its values' types. Rolls off the tongue, doesn't it.\\
-Note that in order to avoid collision with parens used to disambiguate arithmetic, there is
-no such thing as a one-element tuple. The type of \texttt{(4)} is \texttt{int}, not \texttt{(int)}.
 \end{segment}
 
 \clearpage
@@ -543,6 +565,8 @@ string s = new string 128;
 { scope var = s; }
 // Accessing s now would trigger a segfault.
 \end{lstlisting}
+
+Note that variable declarations can also behave as expressions: \texttt{if (int a = 5) \{ writeln "5 is true and \$a"; \}}
 
 \end{segment}
 \begin{segment}{using}
@@ -672,7 +696,7 @@ while 0..10
 \end{lstlisting}
 
 The expression used to advance an iterator and return its new value is \texttt{<-}, pronounced
-"from". For instance, \texttt{while (int i <- 0..10)}: "while int i from [zero to ten]".
+\enquote{from}. For instance, \texttt{while (int i <- 0..10)}: \enquote{while int i from [zero to ten]}.
 
 Arrays also behave as iterators, though note that if you try to iterate a string you will not get characters but bytes.
 There's iterators for strings in \texttt{std.unicode}.
@@ -685,7 +709,7 @@ while int ch <- new UTF8Decoder str
 \end{lstlisting}
 
 Structs and classes can behave as iterators by implementing two properties, \texttt{value}
-of arbitrary type which is the "output" of the iterator, and \texttt{advance} of
+of arbitrary type which is the \enquote{output} of the iterator, and \texttt{advance} of
 type bool. When making an iterator class, please extend \texttt{Iterator!T}, which provides \texttt{value}.
 
 The following snippets are equivalent for an iterator struct or class:
@@ -723,6 +747,30 @@ or when a signal is raised causing an exit to before the scope guard.
 To only execute code when the scope is left by a signal, use \texttt{onFailure}. To only execute code
 when the scope is left by \texttt{return} or \texttt{\}}, use \texttt{onSuccess}. Scope guards
 are executed in reverse order of their declaration.
+
+\end{segment}
+
+\begin{segment}{Type Info}
+
+A bunch of useful expressions for getting information about types.
+
+\begin{itemize}
+
+\item\texttt{type-of <expr>}: the type of the expression
+\item\texttt{size-of <type>}: the size of the type, including padding
+\item\texttt{mangle-of <type|identifier>}: the C ABI mangling of the type or symbol
+\item\texttt{string-of <type|expr>}: a debug string representing its parameter. \emph{DO NOT TRY TO PARSE THIS.} If you are
+parsing this, you are making a mistake.
+\item\texttt{ReturnType <type>}: the return type of a function or delegate type.\footnote{Inconsistently capitalized because I stole it from D.}
+\item\texttt{ParamTypes <type>}: the tuple of type's parameter types.
+\item\texttt{types-equal <type>}: true iff all types in the tuple argument are the same type.
+\item\texttt{implicitly-converts-to <type> <expr>}: true iff \texttt{<expr>} implicitly converts to \texttt{<type>}.
+\item\texttt{type-is <kind> <type>}: Determine if type is a \texttt{<kind>} kind of type, where \texttt{<kind>} is one of
+\texttt{tuple}, \texttt{array}, \texttt{static-array}, \texttt{class}, \texttt{interface}, \texttt{function}, \texttt{delegate}, 
+\texttt{vector}, \texttt{struct}, \texttt{pointer} or \texttt{iterable}.
+\item\texttt{is-defined <identifier>}: true iff \texttt{<identifier>} is defined in the current namespace
+
+\end{itemize}
 
 \end{segment}
 
