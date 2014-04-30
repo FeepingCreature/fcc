@@ -283,3 +283,36 @@ template maxlist(T) {
     } else return failtype!R(); // :(
   }
 }
+
+/*Function: primes
+Returns an iterator that efficiently computes prime numbers over the integers
+limit is the largest prime returned. (Provide this for better efficiency)*/
+auto primes(int limit = int.max) {
+  // Implement Sieve
+  struct PrimeGen {
+    int[auto~] primefacs;
+    void free() { primefacs.free; }
+    int value;
+    int limit;
+    bool advance() {
+      if (value >= limit) return false;
+      auto sqlimit = sqrt limit;
+      while value < limit {
+        value ++;
+        auto sublimit = sqrt value;
+        for int k <- primefacs {
+          if k > sublimit continue;
+          if value % k == 0 break;
+        } then {
+          if (value <= sqlimit) primefacs ~= value;
+          return value < limit;
+        }
+      }
+      return false;
+    }
+  }
+  PrimeGen res;
+  res.value = 1; // return 2 first
+  res.limit = limit;
+  return res;
+}

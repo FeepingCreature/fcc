@@ -222,15 +222,21 @@ string concat(string[] strs) {
 import c.stdlib;
 extern(C) double atof(char*);
 extern(C) int atoi(char*);
-alias c_atoi = atoi;
+extern(C) long atoll(char*);
+RenameIdentifier atoll c_atoll;
 RenameIdentifier atof c_atof;
 RenameIdentifier atoi c_atoi;
 
 /*Function: atoi*/
 int atoi(string s) {
-  auto p = toStringz(s);
-  onExit mem.free(p);
-  return c_atoi(p);
+  scope p = toStringz(s);
+  return c_atoi p;
+}
+
+/*Function: atol*/
+long atol(string s) {
+  scope p = toStringz s;
+  return c_atoll p;
 }
 
 platform(!arm*) {
