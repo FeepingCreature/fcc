@@ -1,0 +1,24 @@
+module euler20;
+
+import base;
+
+import c.gmp;
+pragma(lib, "gmp");
+
+int euler20() {
+  mpz_t integ;
+  using prefix mpz_ {
+    init_set_ui (integ, 1);
+    for int i <- 1..101 {
+      mul_ui (integ, integ, i);
+    }
+    using prefix gmp_ {
+      int len = snprintf(null, 0, "%Zd", &integ);
+      auto str = new char[] (len + 1);
+      snprintf(str.(ptr, length), "%Zd", &integ);
+      str = str[0..$-1]; // C. C, C, C. Whyy.
+      eulerprint str;
+      return sum [for ch <- str: ch - "0"];
+    }
+  }
+}

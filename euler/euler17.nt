@@ -1,0 +1,58 @@
+module euler17;
+
+import base;
+
+string toEnglish(long l, bool andit = false) {
+  if (l < 0) return "minus $(toEnglish -l)";
+  alias list = [
+    "zero", "one", "two", "three", "four",
+    "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen",
+    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"
+  ];
+  if (andit && l == 0) return "";
+  if l < 20 { if (andit) return " and $(list[int:l])"; return list[int:l]; }
+  auto sublist = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  if l < 100 {
+    auto base = sublist[int:l / 10 - 2];
+    auto rest = int:l % 10;
+    
+    string prefix;
+    if (andit) prefix = " and ";
+    
+    if (rest == 0) return "$prefix$base";
+    return "$prefix$base-$(toEnglish rest)";
+  }
+  auto nums = [
+    (100, "hundred"),
+    (1000, "thousand"),
+    (1_000_000, "million"),
+    (1_000_000_000, "billion")/*, // TODO long literals :(
+    (1_000_000_000_000, "trillion"),
+    (1_000_000_000_000_000, "quadrillion"),
+    (1_000_000_000_000_000_000, "quintillion")*/
+  ];
+  for int j <- 0..nums.length - 1 {
+    auto limit = nums[j+1][0];
+    (int div, string text) = nums[j];
+    if (l < limit) {
+      return "$(scope=toEnglish(l / div)) $text$(scope=toEnglish(l % div, true))";
+    }
+  }
+  assert(false, "too large: $l");
+}
+
+int euler17() {
+  if (false) { // testing
+    for int i <- [for i <- 0..30: 1<<i] {
+      writeln "$i: $(toEnglish i)";
+    }
+    for int i <- [for i <- 0..6: int:pow(10, i)] {
+      writeln "$i: $(toEnglish i)";
+      writeln "$(i+1): $(toEnglish $ i + 1)";
+    }
+  }
+  int res = sum [for i <- 1..1001: toEnglish(i).replace(" ", "").replace("-", "").length];
+  eulerprint "1-1000 => $res";
+  return res;
+}

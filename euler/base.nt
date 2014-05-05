@@ -1,0 +1,66 @@
+module base;
+
+public import std.(util, fun, coroutine, string, math, hashmap);
+
+int chosenproblem = -1;
+int activeproblem;
+
+int solved, failed, skipped;
+alias total = solved + failed + skipped;
+
+void eulerprint(string s) {
+  writeln "problem $activeproblem> $s";
+}
+
+string solutions_txt;
+void init() {
+  import std.file;
+  solutions_txt = (string:readAll "solutions.txt").between("START", "");
+}
+
+long lookupSolution() {
+  return solutions_txt.between("\n $(activeproblem). ", "\n").atol();
+}
+
+void solve(int problem, void delegate() task) {
+  if (chosenproblem != -1 && problem != chosenproblem) return;
+  using scoped activeproblem {
+    activeproblem = problem;
+    task();
+  }
+}
+
+void solve(int problem, int delegate() task) {
+  .solve(problem, λ{
+    int res = task();
+    int s = int:lookupSolution();
+    if (s != res) {
+      eulerprint "[FAIL] calculated $res, but the result was $s";
+      failed ++;
+      exit 1;
+    }
+    eulerprint "[OK] result is: $res";
+    solved ++;
+  });
+}
+
+void solve(int problem, long delegate() task) {
+  .solve(problem, λ{
+    long res = task();
+    long s = lookupSolution();
+    if (s != res) {
+      eulerprint "[FAIL] calculated $res, but the result was $s";
+      failed ++;
+      exit 1;
+    }
+    eulerprint "[OK] result is: $res";
+    solved ++;
+  });
+}
+
+void skip(int problem, string reason) {
+  solve(problem, λ{
+    eulerprint "[SKIPPED] $reason";
+    skipped ++;
+  });
+}

@@ -1,0 +1,17 @@
+module euler14;
+
+import base;
+
+int euler14() {
+  int collatzcount(long n) {
+    int count;
+    while true {
+      count ++;
+      if (n == 1) break;
+      if (n & 1 == 0) n /= 2;
+      else n = 3 * n + 1;
+    }
+    return count;
+  }
+  return maximize(1..1_000_000, λ(int i) -> collatzcount i);
+}

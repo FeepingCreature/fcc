@@ -1,0 +1,119 @@
+module euler;
+
+import base;
+import euler8, euler11, euler14, euler15, euler17, euler18, euler19, euler20;
+
+void main(string[] args) {
+  if (args.length) chosenproblem = args[0].atoi();
+  
+  solve(1, λ -> sum for i in (0..1000) select i % 3 == 0 || i % 5 == 0);
+  
+  solve(2, λ -> sum for x in (setupCoIterator!int λ(yield) {
+      yield 1;
+      int a = 1, b = 2;
+      while (true) {
+        yield b;
+        (a, b) = (b, a + b);
+      }
+    }) takeUntil x > 4000000 select x % 2 == 0);
+  
+  // TODO implement long number literals
+  solve(3, λ{
+    return maxlist setupCoIterator!int λ(yield) {
+      for int i <- primes().takeUntil λ(int i) -> i > int:(sqrt 600851475143.0) {
+        long l = long:600851 * long:1_000_000 + long:475143;
+        if (l % long:i == 0) yield i;
+      }
+    }
+  });
+  
+  solve(4, λ{
+    bool ispal(int i) {
+      auto s = "$i";
+      while s.length > 1 {
+        char (a, b) = s[(0, $-1)];
+        if (a != b) return false; 
+        s = s[1..$-1];
+      }
+      return true;
+    }
+    return maxlist setupCoIterator!int λ(yield) {
+      for int i <- 0..1000 for int k <- i..1000 {
+        auto p = i * k;
+        if (ispal p) yield p;
+      }
+    }
+  });
+  
+  solve(5, λ{
+    int addsPrimeFactor(int i) {
+      // search for the largest j that divides i (NOT prime, but the divisor is)
+      for (int j = i - 1; j >= 2; --j)
+        if i % j == 0 {
+          // search the intervening values to see if any of them added the prime factor we need
+          for (int l = j + 1; l < i; ++l) {
+            if (addsPrimeFactor l == i / j) return 1; // if so, the prime factor is already in, and we need not add it.
+          }
+          return i / j; // otherwise we require a new prime factor, return it
+        }
+      return i; // otherwise we are a prime factor, return us
+    }
+    int res = [for i <- 1..21: addsPrimeFactor i].reduce λ(int a, b) -> a * b;
+    return res;
+  });
+  
+  solve(6, λ -> (sum (1..101))^2 - sum [for x <- 1..101: x ^ 2]);
+  
+  solve(7, λ -> primes().take(10001)[$-1]);
+  
+  solve(8, λ{ return euler8; });
+  
+  // TODO implement "for x, y, z in"
+  solve(9, λ{
+    assert $ auto product <-
+      for tup in cross(0..1000, 0..1000, 0..1000)
+      select tup.(_0 < _1 < _2)
+      select tup.(_0^2 + _1^2 == _2^2)
+      select tup.(_0 + _1 + _2 == 1000)
+      map tup.(_0 * _1 * _2);
+    return product;
+  });
+  
+  solve(10, λ{
+    long l;
+    for int p <- primes(2_000_000) l += p; 
+    return l;
+  });
+  
+  solve(11, λ -> euler11());
+  
+  solve(12, λ{
+    int i = 1, x;
+    while true {
+      x += i++;
+      if (int s = 2 * sum [for y <- (1..int:sqrt x): x % y == 0]) > 500 {
+        eulerprint "$x has $s divisors.";
+        return x;
+      }
+    }
+  });
+  
+  skip(13, "in protest against bignum bias");
+  
+  solve(14, λ -> euler14());
+  
+  solve(15, λ -> euler15());
+  
+  skip(16, "in protest against bignum bias");
+  
+  solve(17, λ -> euler17());
+  
+  solve(18, λ -> euler18());
+  
+  solve(19, λ -> euler19());
+  
+  solve(20, λ -> euler20());
+  
+  writeln "  -------------------------";
+  writeln "Total: $total problems, $solved solved, $failed failed, $skipped skipped.";
+}

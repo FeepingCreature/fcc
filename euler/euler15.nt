@@ -1,0 +1,19 @@
+module euler15;
+
+import base;
+
+long euler15() {
+  Hashmap!((int, int), long) pathcache;
+  long paths(int x, y) {
+    if (x > y) (x, y) = (y, x);
+    if (auto ptr = pathcache.get(x, y)) return *ptr;
+    // x <= y
+    if (!x) return 1;
+    auto res = paths(x - 1, y) + paths(x, y - 1);
+    pathcache.insert((x, y), res);
+    return res;
+  }
+  eulerprint "paths of 2, 2: $(paths(2, 2))";
+  eulerprint "paths of 20, 20: $(paths(20, 20))";
+  return paths(20, 20);
+}

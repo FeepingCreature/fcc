@@ -1,0 +1,19 @@
+module euler19;
+
+import base, std.macros.switchover, std.date;
+
+int euler19() {
+  int sum;
+  using Date date {
+    year = 1900;
+    while (year != 1901) next;
+    while !(year == 2000 && month == Month.December && day == 31 - 1) {
+      if (day == 0 && weekday == Weekday.Sunday) {
+        // eulerprint "$date";
+        sum ++;
+      }
+      next;
+    }
+  }
+  return sum;
+}
