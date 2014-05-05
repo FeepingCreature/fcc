@@ -14,6 +14,8 @@ class Tuple_ : Type, RelNamespace {
   /// 1.
   Structure wrapped;
   string[] names;
+  // force to stay tuple, even if only 1 member. enables the .tuple property.
+  bool forced;
   NSCache!(IType) typecache;
   NSCache!(int) offsetcache;
   this() { }
@@ -36,12 +38,22 @@ class Tuple_ : Type, RelNamespace {
       wrapped.select((string, RelMember member) { res = qformat(res, "_", member.type.mangle); });
       return res;
     }
-    string toString() { string res; foreach (i, ty; types()) { if (i) res ~= ", "; res ~= Format(ty); if (names && names[i]) res ~= Format(" ", names[i]); } return "(" ~ res ~ ")"; }
+    string toString() {
+      string res;
+      foreach (i, ty; types()) {
+        if (i) res ~= ", ";
+        res ~= Format(ty);
+        if (names && names[i]) res ~= Format(" ", names[i]);
+      }
+      if (forced) return "tuple(" ~ res ~ ")";
+      return "(" ~ res ~ ")";
+    }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       it = resolveType(it);
       auto tup = fastcast!(Tuple) (it);
       assert(!!tup);
+      if (forced != tup.forced) return false; // different behavior, different type
       auto types1 = types(), types2 = tup.types();
       if (types1.length != types2.length) return false;
       for (int i = 0; i < types1.length; ++i) {
@@ -90,6 +102,21 @@ mixin DefaultParser!(gotBraceExpr, "tree.expr.braces"[], "6"[]);
 
 Tuple[string] tupcache;
 
+Tuple mkNewTuple(IType[] types, string[] names = null) {
+  auto tup = fastalloc!(Tuple)();
+  tup.wrapped = fastalloc!(Structure)(cast(string) null);
+  tup.wrapped.packed = true;
+  tup.names = names;
+  foreach (i, type; types) {
+    if (names && names[i])
+      fastalloc!(RelMember)(names[i], type, tup.wrapped);
+    else
+      // fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+      fastalloc!(RelMember)(cast(string) null, type, tup.wrapped);
+  }
+  return tup;
+}
+
 Tuple mkTuple(IType[] types...) { return mkTuple(types, null); }
 Tuple mkTuple(IType[] types, string[] names) {
   string hash;
@@ -102,17 +129,7 @@ Tuple mkTuple(IType[] types, string[] names) {
     logln("Cannot make tuple: must not contain void, "[], types);
     fail;
   }
-  auto tup = fastalloc!(Tuple)();
-  tup.wrapped = fastalloc!(Structure)(cast(string) null);
-  tup.wrapped.packed = true;
-  tup.names = names;
-  foreach (i, type; types) {
-    if (names && names[i])
-      fastalloc!(RelMember)(names[i], type, tup.wrapped);
-    else
-      // fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
-      fastalloc!(RelMember)(cast(string) null, type, tup.wrapped);
-  }
+  auto tup = mkNewTuple(types, names);
   if (hash) tupcache[hash] = tup;
   return tup;
 }
@@ -158,6 +175,7 @@ final class RefTuple : MValue, IRefTuple {
     return fastalloc!(RefTuple)(newlist);
   }
   IType[] types() { return (fastcast!(Tuple) (baseTupleType)).types(); }
+  bool forced() { return (fastcast!(Tuple) (baseTupleType)).forced; }
   Expr[] getAsExprs() {
     auto exprs = new Expr[mvs.length];
     foreach (i, mv; mvs) exprs[i] = mv;
@@ -254,11 +272,11 @@ extern(C) IType resolveTup(IType it, bool onlyIfChanged = false) {
   auto res = resolveType(it, true);
   if (auto tup = fastcast!(Tuple) (res)) {
     auto types = tup.types();
-    if (types.length == 1) return types[0];
+    if (!tup.forced && types.length == 1) return types[0];
   }
   if (auto rt = fastcast!(RefTuple) (res)) {
     auto types = rt.types();
-    if (types.length == 1) return types[0];
+    if (!rt.forced() && types.length == 1) return types[0];
   }
   if (onlyIfChanged) return null;
   return res;
@@ -347,6 +365,8 @@ import ast.fold, ast.int_literal;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto rt = fastcast!(RefTuple) (ex)) {
+      if (auto tup = fastcast!(Tuple)(ex.valueType()))
+        if (tup.forced) return null;
       if (rt.mvs.length == 1) {
         if (auto lvamv = fastcast!(LValueAsMValue) (rt.mvs[0]))
           return lvamv.sup;

@@ -120,8 +120,8 @@ static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     Tuple tup;
     if (!gotImplicitCast(e1, Single!(HintType!(Tuple)), (IType it) {
-      tup = fastcast!(Tuple) (resolveType(it));
-      return tup && tup.types.length != 1; // resolve ambiguity with array index
+      tup = fastcast!(Tuple) (ast.tuples.resolveTup(resolveType(it)));
+      return !!tup;
     }))
       return null;
     int count;
@@ -142,8 +142,8 @@ static this() {
   defineOp("length"[], delegate Expr(Expr ex) {
     Tuple tup;
     if (!gotImplicitCast(ex, (IType it) {
-      tup = fastcast!(Tuple) (resolveType(it));
-      return tup && tup.types.length != 1; // resolve ambiguity with array length
+      tup = fastcast!(Tuple) (ast.tuples.resolveTup(resolveType(it)));
+      return !!tup;
     }))
       return null;
     return mkInt(tup.types.length);
@@ -153,12 +153,8 @@ static this() {
 import ast.casting;
 static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
-    auto tup = fastcast!(Tuple) (resolveType(e1.valueType()));
+    auto tup = fastcast!(Tuple) (ast.tuples.resolveTup(resolveType(e1.valueType())));
     if (!tup) return null;
-    int count;
-    tup.wrapped.select((string, RelMember rm) { count ++; }, &tup.wrapped.rmcache);
-    /// 2.1
-    if (count <= 1) return null;
     if (!gotImplicitCast(e2, (IType it) { return test(fastcast!(RangeIsh) (it)); }))
       return null;
     
@@ -312,7 +308,7 @@ static this() {
     while (true) {
       auto tup = fastcast!(Tuple) (resolveType(ex.valueType()));
       if (!tup) return;
-      if (tup.types.length != 1) return;
+      if (tup.types.length != 1 || tup.forced) return;
       if (tup !is ex.valueType()) ex = reinterpret_cast(tup, ex);
       ex = mkTupleIndexAccess(ex, 0);
       dg(ex);
@@ -386,3 +382,24 @@ extern(C) Expr _make_tupleof(Structure str, Expr ex) {
   foreach (member; ml) reslist ~= fastcast!(Expr) (member.transform(ex));
   return mkTupleExpr(reslist);
 }
+
+
+import ast.casting, ast.pointer, ast.vardecl, ast.conditionals;
+Object gotForcedTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("(")) t2.failparse("Opening paren expected");
+  Expr ex;
+  if (!rest(text, "tree.expr", &ex)) text.failparse("Expression expected");
+  ex = forcedConvert(ex);
+  Tuple tuple;
+  auto evt = resolveType(ex.valueType());
+  if (auto tup = fastcast!(Tuple)(evt)) {
+    tuple = mkNewTuple(tup.types());
+  } else {
+    // If this is changed to IType, do not blindly fastcast!!
+    tuple = mkNewTuple([evt]);
+  }
+  tuple.forced = true;
+  return fastcast!(Object)(reinterpret_cast(tuple, ex));
+}
+mixin DefaultParser!(gotForcedTupleExpr, "tree.expr.forcedtuple"[], "29", "__tuple");
