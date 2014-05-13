@@ -258,7 +258,7 @@ platform(!arm*) {
   }
   reassign string toUpper(string s) {
     char[auto~] res;
-    for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "a" + "A"); else res ~= ch;
+    for auto ch <- s if "a" <= ch <= "z" res ~= char:byte:(ch - "a" + "A"); else res ~= ch;
     return res[];
   }
 }
