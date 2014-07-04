@@ -3,7 +3,7 @@ Create and interact with processes*/
 module std.process;
 
 import c.stdlib, c.unistd, c.errno;
-import std.string, std.util, std.file;
+import std.string, std.util, std.file, std.async;
 
 alias C_system = system;
 extern(C) int pipe2(int* pipefd, int flags); // _GNU_SOURCE
@@ -27,14 +27,23 @@ platform(default) {
     void init(string s) super.init "ReadbackError: $s";
   }
   import c.signal, c.sys.wait, c.poll;
-  class ReadbackStream : Iterator!string {
+  class ReadbackStream : Iterator!string, AsyncHandle {
     alias implicit-cast = join this;
-    int x 2 hdl_sysward, hdl_selfward;
+    int x 2 hdl_sysward, hdl_selfward, ourside_pair;
     bool hup, done; int fdslength;
     string infotext;
     Iterator!string input; string inbuffer;
     char x 4096 buf;
     pid_t child;
+    void delegate(AsyncBlockMode) async_yield;
+    override int[] getFds() {
+      ourside_pair[] = [hdl_selfward[0], hdl_sysward[1]]; // for easier getFds()
+      auto res = ourside_pair[];
+      if (res[1] == -1) res = res[0..$-1];
+      if (res[0] == -1) res = res[1..$];
+      return res;
+    }
+    override void setAsyncFun(void delegate(AsyncBlockMode) yield) { async_yield = yield; }
     int wait() {
       int res;
       waitpid(child, &res, 0);
@@ -110,7 +119,18 @@ platform(default) {
         auto my-fdslength = fdslength;
         if (!!uni && !uni.canAdvance()) my-fdslength = 1;
         
-        auto hits = poll(fds.ptr, my-fdslength, -1);
+        int hits;
+        if (async_yield) {
+          hits = poll(fds.ptr, my-fdslength, 0);
+          if (!hits) {
+            if (hdl_selfward[0] == -1) async_yield(AsyncBlockMode.Writing);
+            else if (hdl_sysward[1] == -1) async_yield(AsyncBlockMode.Reading);
+            else async_yield(AsyncBlockMode.Both);
+            continue;
+          }
+        } else {
+          hits = poll(fds.ptr, my-fdslength, -1);
+        }
         
         // don't quit yet - there may still be data to be read!
         if (fds[0].revents & POLLHUP && !hup) {

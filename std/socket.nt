@@ -2,7 +2,7 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, c.unistd, c.errno;
+import std.string, std.async, c.unistd, c.errno;
 platform(*-mingw32) {
   pragma(define, "_WIN32_WINNT=0x0501"); // target xp
   import c.winsock2, c.ws2tcpip;
@@ -48,24 +48,6 @@ class TcpAddress : Address {
   }
 }
 
-platform(default) {
-  alias __NFDBITS = 8 * size-of __fd_mask;
-  __fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
-  void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }
-  bool __FD_ISSET(int d, fd_set* set) { return !!$ set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
-  alias FD_SET = __FD_SET;
-  alias FD_ISSET = __FD_ISSET;
-}
-platform(*-mingw32) {
-  alias FD_SETSIZE = 64;
-  void FD_SET(int d, fd_set* set) {
-    if (set.fd_count < FD_SETSIZE) set.fd_array[set.fd_count++] = d;
-  }
-  bool FD_ISSET(int d, fd_set* set) {
-    return !!__WSAFDIsSet(d, set);
-  }
-}
-
 class SocketError : Error {
   void init(int i) { super.init("socket operation failed: $i"); }
   void init(string s) { super.init "socket operation failed: $s"; }
@@ -73,8 +55,9 @@ class SocketError : Error {
 
 /*Class: Socket
 A BSD Socket*/
-class Socket {
+class Socket : AsyncHandle {
   int sockfd;
+  override int[] getFds() { return (&sockfd)[0..1]; }
   Address boundAddr;
   /*Function: close*/
   void close() {
@@ -104,12 +87,13 @@ class Socket {
     // DO NOT USE SETSOCKOPT HERE !!!!!!!!!
     myTimeout = (true, t);
   }
-  void delegate(bool read) asyncfun;
+  void delegate(AsyncBlockMode mode) asyncfun;
   /*Function: setAsyncFun
+  Implements AsyncHandle.
   If set, recv/send will retry as long as they cannot send
   or receive any data. However, they will also alternatingly call the
   yield() function passed as a parameter.*/
-  void setAsyncFun(void delegate(bool read) yield) {
+  override void setAsyncFun(void delegate(AsyncBlockMode mode) yield) {
     asyncfun = yield;
     
     import c.fcntl;
@@ -154,9 +138,9 @@ class Socket {
   int recv(ubyte[] buf) {
     if (myTimeout.got) {
       SelectSet ss;
-      ss.add(this, =>read);
+      ss.add(this, AsyncBlockMode.Reading);
       ss.select(int:(myTimeout.value*1_000_000));
-      if (!ss.isReady(this, =>read))
+      if (!ss.isReady(this, AsyncBlockMode.Reading))
         raise new SocketError "read timed out";
     }
     while (true) {
@@ -168,7 +152,7 @@ class Socket {
       }
       if (asyncfun && res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
         // yield? in any case, retry
-        asyncfun?(true);
+        asyncfun?(AsyncBlockMode.Reading);
         continue;
       }
       if (res <= 0) {
@@ -189,7 +173,7 @@ class Socket {
       }
       if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
         // yield? in any case, retry
-        asyncfun?(false);
+        asyncfun?(AsyncBlockMode.Writing);
         continue;
       }
       if (res <= 0) {
@@ -224,25 +208,27 @@ class Socket {
   }
   /*Function: accept
   Once incoming connections occur, return a socket for them*/
-  Socket accept() using new Socket (=>bare) {
-    that.boundAddr = this.boundAddr.dup;
-    auto hdl = that.boundAddr.getAddrHandle();
-    int gotLength = hdl[1];
-    auto fam = hdl[0].sa_family;
-    while (true) {
-      auto res = .accept(this.sockfd, hdl[0], &gotLength);
-      if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        this.asyncfun?(true);
-        continue;
+  Socket accept() {
+    using new Socket (=>bare) {
+      that.boundAddr = this.boundAddr.dup;
+      auto hdl = that.boundAddr.getAddrHandle();
+      int gotLength = hdl[1];
+      auto fam = hdl[0].sa_family;
+      while (true) {
+        auto res = .accept(this.sockfd, hdl[0], &gotLength);
+        if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+          this.asyncfun?(AsyncBlockMode.Reading);
+          continue;
+        }
+        if (res == -1) {
+          raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
+        }
+        if (hdl[0].sa_family != fam || gotLength > hdl[1])
+          raise new Error ("Accepted socket address was of incompatible type to listening socket: "
+            ~"$(hdl[0].sa_family) ($gotLength), but expected $(fam) ($(hdl[1]))! ");
+        that.sockfd = res;
+        return that;
       }
-      if (res == -1) {
-        raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
-      }
-      if (hdl[0].sa_family != fam || gotLength > hdl[1])
-        raise new Error ("Accepted socket address was of incompatible type to listening socket: "
-          ~"$(hdl[0].sa_family) ($gotLength), but expected $(fam) ($(hdl[1]))! ");
-      that.sockfd = res;
-      return that;
     }
   }
 }
@@ -270,49 +256,3 @@ class sockreader : Iterator!ubyte[] {
 }
 
 sockreader readsocket(Socket s) return new sockreader s;
-
-/*Struct: SelectSet
-Allows waiting on multiple sockets*/
-struct SelectSet {
-  fd_set rdset, wrset, errset;
-  int largest;
-  /*Function: add
-  Add a socket to the set*/
-  void add(Socket sock, bool read = false, bool write = false, bool error = false) {
-    auto sockfd = sock.sockfd;
-    if read  FD_SET(sockfd, &rdset);
-    if write FD_SET(sockfd, &wrset);
-    if error FD_SET(sockfd, &errset);
-    if sockfd > largest largest = sockfd;
-  }
-  /*Function: isReady
-  Check if the socket is ready. Must follow a call to select(). Socket must have been added. */
-  bool isReady(Socket sock, bool read = false, bool write = false, bool error = false) {
-    auto sockfd = sock.sockfd;
-    if  read && FD_ISSET(sockfd, &rdset) return true;
-    if write && FD_ISSET(sockfd, &wrset) return true;
-    if error && FD_ISSET(sockfd, &errset)return true;
-    return false;
-  }
-  /*Function: select
-  Wait until one of the sockets changes state. */
-  /*void select(float timeout = 30.0) {
-    timeval tv;
-    tv.tv_sec = int:timeout;
-    tv.tv_usec = int:((timeout - tv.tv_sec) * 1_000_000);
-    auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
-    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
-  }*/
-  void select(int timeout = 30_000_000) {
-    timeval tv;
-    tv.tv_sec = timeout / 1_000_000;
-    tv.tv_usec = timeout - tv.tv_sec * 1_000_000;
-    int res;
-    while (true) {
-      res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
-      if (res == -1 && errno == EINTR) continue;
-      break;
-    }
-    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
-  }
-}

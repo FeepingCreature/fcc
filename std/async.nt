@@ -1,0 +1,163 @@
+module std.async;
+
+enum AsyncBlockMode { Unblocked = 0, Reading, Writing, Both }
+
+interface AsyncHandle {
+  // return all file handles we're interested in stuff on
+  int[] getFds();
+  /*
+    if set, call yield() to indicate we want to wait for a read/write readiness event
+    note: yield having returned does not _guarantee_ data being available.
+  */
+  void setAsyncFun(void delegate(AsyncBlockMode) yield);
+}
+
+import std.coroutine, std.string;
+
+import c.stdlib, c.errno, c.string;
+
+platform(default) {
+  alias __NFDBITS = 8 * size-of __fd_mask;
+  __fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
+  void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }
+  bool __FD_ISSET(int d, fd_set* set) { return !!$ set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
+  alias FD_SET = __FD_SET;
+  alias FD_ISSET = __FD_ISSET;
+}
+platform(*-mingw32) {
+  alias FD_SETSIZE = 64;
+  void FD_SET(int d, fd_set* set) {
+    if (set.fd_count < FD_SETSIZE) set.fd_array[set.fd_count++] = d;
+  }
+  bool FD_ISSET(int d, fd_set* set) {
+    return !!__WSAFDIsSet(d, set);
+  }
+}
+
+/*Struct: SelectSet
+Allows waiting on multiple fds*/
+struct SelectSet {
+  fd_set rdset, wrset, errset;
+  int largest;
+  /*Function: add
+  Add a socket to the set*/
+  void add(int fd, bool read = false, bool write = false, bool error = false) {
+    if read  FD_SET(fd, &rdset);
+    if write FD_SET(fd, &wrset);
+    if error FD_SET(fd, &errset);
+    if fd > largest largest = fd;
+  }
+  // return true if handle had any fds to wait on
+  bool add(AsyncHandle hdl, AsyncBlockMode mode) {
+    bool read = mode == AsyncBlockMode.Reading || mode == AsyncBlockMode.Both;
+    bool write= mode == AsyncBlockMode.Writing || mode == AsyncBlockMode.Both;
+    if (!read && !write) return false;
+    auto fds = hdl.getFds();
+    // Both is only for classes that have separate Read/Write descriptors
+    // tough luck, if you don't like it come up with a better system patches welcome
+    if (fds.length != read + write) fail "(read=$read, write=$write) but got $fds";
+    if (read && write) {
+      add(fds[0], read => true, error => true);
+      add(fds[1], write=> true, error => true);
+    } else {
+      add(fds[0], read => read, write => write, error => true);
+    }
+    return true;
+  }
+  /*Function: isReady
+  Check if the socket is ready. Must follow a call to select(). Socket must have been added. */
+  bool isReady(int fd, bool read = false, bool write = false, bool error = false) {
+    if  read && FD_ISSET(fd, &rdset) return true;
+    if write && FD_ISSET(fd, &wrset) return true;
+    if error && FD_ISSET(fd, &errset)return true;
+    return false;
+  }
+  bool isReady(AsyncHandle hdl, AsyncBlockMode mode) {
+    bool read = mode == AsyncBlockMode.Reading || mode == AsyncBlockMode.Both;
+    bool write= mode == AsyncBlockMode.Writing || mode == AsyncBlockMode.Both;
+    
+    auto fds = hdl.getFds();
+    if (fds.length != read + write) fail "(read=$read, write=$write) but got $fds";
+    
+    int fdread, fdwrite;
+    if (fds.length == 2) (fdread, fdwrite) = fds[(0, 1)];
+    else (fdread, fdwrite) = fds[(0, 0)];
+    
+    if (read && isReady(fdread, => read, => error)) return true;
+    if (write && isReady(fdwrite, => write, => error)) return true;
+    return false;
+  }
+  /*Function: select
+  Wait until one of the fds changes state. */
+  /*void select(float timeout = 30.0) {
+    timeval tv;
+    tv.tv_sec = int:timeout;
+    tv.tv_usec = int:((timeout - tv.tv_sec) * 1_000_000);
+    auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
+    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
+  }*/
+  void select(int timeout = 30_000_000) {
+    timeval tv;
+    tv.tv_sec = timeout / 1_000_000;
+    tv.tv_usec = timeout - tv.tv_sec * 1_000_000;
+    int res;
+    while (true) {
+      res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
+      if (res == -1 && errno == EINTR) continue;
+      break;
+    }
+    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
+  }
+}
+
+/*Class: AsyncScheduler
+  Implements asynchronous TCP socket management*/
+class AsyncScheduler {
+  alias Tuple = (AsyncHandle hdl, AsyncBlockMode mode, Coroutine coro);
+  Tuple[auto~] tasks;
+  int timeout;
+  void init(int timeout = 30_000_000) { this.timeout = timeout; }
+  void addTask(AsyncHandle hdl, void delegate(AsyncHandle) task) {
+    Tuple newtask;
+    ref array_offset = *new int;
+    newtask = (hdl, AsyncBlockMode.Unblocked, new Coroutine new λ(yield) {
+      alias entry = tasks[array_offset];
+      hdl.setAsyncFun λ(AsyncBlockMode mode) {
+        entry.mode = mode;
+        yield();
+      }
+      task hdl;
+      tasks[array_offset] = (AsyncHandle:null, AsyncBlockMode.Unblocked, Coroutine:null);
+      hdl.setAsyncFun null;
+    });
+    for int i <- ints && ref task <- tasks if !task.hdl {
+      array_offset = i;
+      task = newtask;
+      return;
+    }
+    array_offset = tasks.length;
+    tasks ~= newtask;
+  }
+  int tasksLeft() { return sum [for tup <- tasks: !!tup.hdl]; }
+  void runOnce() using AsyncBlockMode {
+    SelectSet set;
+    bool anyToWaitOn;
+    for ref tup <- tasks if tup.hdl {
+      if (!set.add(tup.hdl, tup.mode)) continue;
+      anyToWaitOn = true;
+    }
+    if (anyToWaitOn) set.select(timeout);
+    int i;
+    while (i < tasks.length) {
+      ref tup = tasks[i++];
+      if !tup.hdl continue;
+      if (tup.mode == Unblocked || set.isReady(tup.hdl, tup.mode)) {
+        tup.mode = Unblocked;
+        tup.coro.enter;
+      }
+    }
+  }
+  void run() {
+    while tasksLeft() runOnce;
+  }
+}
