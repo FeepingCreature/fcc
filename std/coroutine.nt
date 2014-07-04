@@ -35,13 +35,16 @@ class Coroutine {
     exit();
     raise new Error "Coroutine invoked but task has returned. ";
   }
+  void mapStack(int stacksize) {
+    auto ptr = mmap(null, stacksize, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE|MAP_STACK|MAP_NORESERVE, -1, 0);
+    if (!ptr) raise new ErrnoError;
+    stack = ptr[0..stacksize];
+  }
   void init(void delegate(void delegate() yield) task, int stacksize = 1024*1024) {
     this.task = task;
     assert(!!task);
-    auto ptr = mmap(null, stacksize, PROT_READ|PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_STACK, -1, 0);
-    if (!ptr) raise new ErrnoError;
-    stack = ptr[0..stacksize];
     if (getcontext(&ctx) == -1) raise new ErrnoError;
+    mapStack(stacksize);
     ctx.uc_stack.(ss_sp, ss_size, ss_flags) = (stack.ptr, stacksize, 0);
     auto newdata = new type-of (copy_tls(), mem);
     (*newdata) = (copy_tls(), mem);
@@ -76,7 +79,7 @@ template setupCoIterator(T) {
       bool advance() {
         if (done) return false;
         coro.enter();
-        if (done) return false;
+        if (done) { coro.free; return false; }
         value = res;
         return true;
       }

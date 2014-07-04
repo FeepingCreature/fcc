@@ -289,6 +289,32 @@ template findFirstThat(T) {
   }
 }
 
+/*Template: takeUntil
+  Terminate an iterator when a condition is fulfilled
+  Usage: takeUntil(iterator, condition)*/
+template takeUntil(T) {
+  struct takeUntilStrct {
+    T[0] subiter;
+    T[1] test;
+    bool done;
+    type-of-elem T[0] value;
+    bool advance() {
+      if done return false;
+      if value <- subiter {
+        if (test value) { done = true; return false; }
+        return true;
+      }
+      done = true; return false;
+    }
+  }
+  auto takeUntil(T t) {
+    static if (t.length != 2) { pragma(fail, "takeUntil expected two parameters, (iterator, condition): "~string-of T); }
+    takeUntilStrct res;
+    res.(subiter, test) = t;
+    return res;
+  }
+}
+
 template roll(T) {
   alias E = type-of-elem value-of!T;
   struct rolliter {

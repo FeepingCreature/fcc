@@ -8,14 +8,20 @@ class Pointer_ : Type, Dwarf2Encodable {
   this(IType t) { target = forcedConvert(t); if (!target) asm { int 3; } }
   IType proxycache;
   string targettypecmp, lltypecache;
-  IType _proxyType() { if (auto tp = target.proxyType()) return fastalloc!(Pointer)(tp); return null; }
+  bool proxying;
+  IType _proxyType() {
+    if (proxying) return null; // loop breaker, ie. as_type x x*
+    proxying = true; scope(exit) proxying = false;
+    if (auto tp = target.proxyType()) return fastalloc!(Pointer)(tp);
+    return null;
+  }
   override {
     mixin memoize!(_proxyType, proxycache, "proxyType");
     int opEquals(IType ty) {
       ty = resolveType(ty);
       if (!super.opEquals(ty)) return false;
       auto p = fastcast!(Pointer)~ ty;
-      return target == p.target;
+      return target is p.target || target == p.target;
     }
     string llvmSize() { if (nativePtrSize == 4) return "4"; if (nativePtrSize == 8) return "8"; assert(false); }
     // string llvmType() { return typeToLLVM(target) ~ "*"; }
@@ -28,7 +34,7 @@ class Pointer_ : Type, Dwarf2Encodable {
       return lltypecache;
     }
     string mangle() { return qformat("ptrto_", target.mangle()); }
-    string toString() { return Format(target, "*"[]); }
+    string toString() { if (target is this) return "self*"; return Format(target, "*"[]); }
     bool canEncode() {
       auto d2e = fastcast!(Dwarf2Encodable)(resolveType(target));
       return d2e && d2e.canEncode();

@@ -73,10 +73,12 @@ ubyte[] downloadCached(string url, void delegate(string) onRedirect = null, int 
 /*Function: followLink
 Returns the combined URL of the two parameters. For instance, if *from* is "google.de/webhp" and *to* is "/search", the result is "google.de/search".*/
 string followLink(string from, string to) {
-  if to.startsWith "http://" return to;
-  if !from.startsWith "http://" raise new Error "'$from' is not a valid HTTP URL! ";
+  // absolute link
+  if (to.find("://") || to.startsWith("//")) return to;
+  string scheme = from.between("", "://");
+  if (!scheme) raise new Error "'$from' is not a valid HTTP URL! ";
   if to.startsWith "/"
-    return "http://" ~ from.between("http://", "/") ~ to;
+    return "$scheme://" ~ from.between("://", "/") ~ to;
   int pos_param = from.find("?");
   if pos_param == -1 pos_param = from.length;
   auto pos_last_slash = from[7..pos_param].rfind("/");
