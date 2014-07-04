@@ -950,8 +950,12 @@ retry:
   auto ns = fastcast!(Namespace) (space);
   if (!ex || !rn) {
     Object m;
-    if (ns) m = ns.lookup(member, true);
-    if (!m && rn) m = rn.lookupRel(member, null);
+    try {
+      if (ns) m = ns.lookup(member, true);
+      if (!m && rn) m = rn.lookupRel(member, null);
+    } catch (Exception ex) {
+      text.failparse(ex);
+    }
     if (!m) goto try_next_alt;
     
     // auto ex2 = fastcast!(Expr) (m);

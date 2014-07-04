@@ -63,7 +63,9 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
         if (n == name)
           return fastcast!(Object) (reinterpret_cast(this, values[i]));
       if (!local) if (auto res = sup.lookup(name, local)) return res;
-      if (local) throw new Exception("no such enum member");
+      if (local) {
+        throw new Exception("no such enum member: '"~name~"'");
+      }
       return null;
     }
     string mangle(string name, IType type) {
