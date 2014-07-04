@@ -934,6 +934,16 @@ void setupSysmods() {
         }
       }
     }
+    extern(C) void dump_tls(void* dest, source) {
+      auto
+        localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localRange = zip(localStart, localEnd);
+      
+      for (auto range <- localRange) {
+        dest[range[0] .. range[1]] = source[range[0] .. range[1]];
+      }
+    }
     extern(C) void* copy_tls() {
       (int dataStart, int dataEnd) = setupTLSSize();
       alias dataSize = dataEnd - dataStart;
@@ -947,15 +957,7 @@ void setupSysmods() {
         newArea.ptr ++;
       }
       if (!matches) { fprintf(stderr, "feep fails at math because he thought this was impossible\n"); int i; i /= i; }
-      
-      auto
-        localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
-        localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
-        localRange = zip(localStart, localEnd);
-      
-      for (auto range <- localRange) {
-        newArea[range[0] .. range[1]] = sourceptr[range[0] .. range[1]];
-      }
+      dump_tls(newArea.ptr, sourceptr);
       return newArea.ptr;
     }
     int main2(int argc, char** argv) {
