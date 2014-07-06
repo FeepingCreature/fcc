@@ -578,15 +578,26 @@ void setupSysmods() {
     (void[], int)[auto~] dupv_archive;
     void dupvfree(void* p) {
       p = (void**:p)[-1];
+      // part of the current active dupv block
+      if (initial_dupvcache.(int:ptr <= int:p < int:ptr+length)) {
+        referents --;
+        return;
+      }
+      // somewhere in archive?
       for (int i = dupv_archive.length - 1; i >= 0; --i) {
         ref entry = dupv_archive[i];
         if (!entry[1]) continue;
-        if (entry[0].(int:ptr <= int:p < int:ptr+length)) entry[1] --;
-        if (!entry[1]) { // cleanup
-          // entry[0].free; // doesn't work yet in intrinsic
-          mem.free entry[0].ptr;
+        if (entry[1] && entry[0].(int:ptr <= int:p < int:ptr+length)) {
+          entry[1] --;
+          if (!entry[1]) { // cleanup
+            // entry[0].free; // doesn't work yet in intrinsic
+            mem.free entry[0].ptr;
+          }
+          return;
         }
       }
+      // wasn't in our archive - must have been a straight-up malloc
+      mem.free p;
     }
     void[] fastdupv(void[] v) {
       assert ((int:v.ptr)&0b11 == 0); // must be 4-aligned
@@ -602,8 +613,10 @@ void setupSysmods() {
           dupvcache = null;
         }
         if (!dupvcache.length) {
-          if (initial_dupvcache)
-            dupv_archive ~= (initial_dupvcache, referents);
+          if (initial_dupvcache) {
+            if (referents) dupv_archive ~= (initial_dupvcache, referents);
+            else mem.free initial_dupvcache.ptr;
+          }
           referents = 0;
           dupvcache = new void[] BLOCKSIZE;
           initial_dupvcache = dupvcache;
@@ -612,7 +625,7 @@ void setupSysmods() {
         dupvcache = dupvcache[toalloc .. $];
         referents ++;
       }
-      // alloc res to v
+      // align res to v
       auto original_res = res;
       do res = res[4..$];
       while (int:res.ptr & 0b1111 != int:v.ptr & 0b1111);
