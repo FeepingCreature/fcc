@@ -402,6 +402,10 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     bool exprHasAlternativesToACall;
     auto oobj = obj;
     if (auto nobj = getOpCall(obj)) { exprHasAlternativesToACall = true; obj = nobj; }
+    {
+      auto t3 = t2;
+      if (t3.accept(",") || t3.accept(";")) exprHasAlternativesToACall = true; // may be alias
+    }
     Function fun;
     if (auto f = fastcast!(Function) (obj)) {
       fun = f;
@@ -465,6 +469,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     catch (ParseEx pe) text.failparse("cannot call: ", pe);
     catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
+      if (exprHasAlternativesToACall) return null;
       if (t2.accept("("))
         t2.failparse("Failed to call function of ", params, ": call did not match");
       auto t3 = t2;
