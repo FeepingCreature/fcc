@@ -72,7 +72,7 @@ ubyte[] downloadCached(string url, void delegate(string) onRedirect = null, int 
 
 /*Function: followLink
 Returns the combined URL of the two parameters. For instance, if *from* is "google.de/webhp" and *to* is "/search", the result is "google.de/search".*/
-string followLink(string from, string to) {
+reassign string followLink(string from, string to) {
   // absolute link
   if (to.find("://") || to.startsWith("//")) return to;
   string scheme = from.between("", "://");

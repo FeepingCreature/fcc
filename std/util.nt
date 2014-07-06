@@ -427,3 +427,26 @@ template breakIter(T) {
     return new BreakIterator sup;
   }
 }
+
+import std.hashmap;
+template uniq(T) {
+  alias E = type-of-elem T;
+  alias I = type-of value-of!T.iterator;
+  class UniqIter : Iterator!E {
+    I sup;
+    Hashset!E seen;
+    bool advance() {
+      while true {
+        if !(this.value <- sup) return false;
+        if (!seen.has this.value) {
+          seen.add this.value;
+          return true;
+        }
+      }
+    }
+    void init(I sup) { this.sup = sup; }
+  }
+  auto uniq(T t) {
+    return new UniqIter t.iterator;
+  }
+}

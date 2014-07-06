@@ -20,7 +20,7 @@ void main() {
   foo[0] = 1000;
   writeln "$(ubyte[]:foo)";
   auto sock = new Socket;
-  sock.open new TcpAddress ("www.google.de", 80);
+  sock.open new TcpAddress ("www.welt.de", 80);
   sock.send ubyte[]:"GET / HTTP/1.0\r\n";
   sock.send ubyte[]:"Host: www.google.de\r\n";
   sock.send ubyte[]:"\r\n";
