@@ -2,7 +2,7 @@
 File I/O*/
 module std.file;
 
-import c.dirent, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
+import c.dirent, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.utime, c.sys.stat;
 
 class ErrnoError : Error {
   int errno;
@@ -239,6 +239,14 @@ time_t accessed(string file) {
   }
 }
 
+void set-accessed(string file, time_t t) {
+  utimbuf times;
+  times.actime = t;
+  times.modtime = modified file;
+  if (utime(scope= toStringz file, &times) == -1)
+    raise new ErrnoError;
+}
+
 time_t modified(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
@@ -250,6 +258,14 @@ time_t modified(string file) {
   platform(!i686-mingw32) {
     return s.st_mtim.tv_sec;
   }
+}
+
+void set-modified(string file, time_t t) {
+  utimbuf times;
+  times.actime = accessed file;
+  times.modtime = t;
+  if (utime(scope= toStringz file, &times) == -1)
+    raise new ErrnoError;
 }
 
 time_t statuschanged(string file) {
@@ -285,8 +301,11 @@ platform(!i686-mingw32) {
   Function: exists
   Returns whether a file exists.
 */
-bool exists(string file) {
+bool exists(string file, bool raw = false) {
   scope p = toStringz file;
+  if (raw) {
+    return lstat(p, &stat s) == 0;
+  }
   return access(p, F_OK) != -1;
 }
 
