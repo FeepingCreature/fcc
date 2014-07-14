@@ -1,0 +1,65 @@
+module memfix;
+
+import std.file, std.string, std.hashmap, std.util, std.sort;
+
+void main(string[] args) {
+  for auto file <- args {
+    Hashmap!(string, int) allocsizes;
+    fprintf(stderr, "reading %.*s into memory\n", file);
+    auto fd = readAll file;
+    fprintf(stderr, "read %i\n", fd.length);
+    ubyte[][auto~] list;
+    ubyte[] take(int i) {
+      (ubyte[] res, fd) = fd[(0..i, i..$)];
+      return res;
+    }
+    int takei() {
+      auto d = take(4);
+      return *int*: d.ptr;
+    }
+    auto stub = file.endsWith(".txt");
+    auto fixedlog = writefile "$(stub).fixed.txt";
+    fprintf(stderr, "processing data\n");
+    while fd.length {
+      auto code = take(1)[0];
+      if (code == "*") {
+        // fprintf(stderr, "*\n");
+        auto len = takei();
+        fixedlog ubyte[]: "*";
+        // fprintf(stderr, " %i, %i\n", id, len);
+        auto data = take(len);
+        fixedlog ubyte[]: [len];
+        fixedlog data;
+      } else if (code == "+") {
+        int ptr = *int*:fd.ptr;
+        // fprintf(stderr, "+%p\n", ptr);
+        int idlen = (int[]: fd[0..12])[2];
+        list ~= take(12 + 4 * idlen);
+      } else if (code == "-") {
+        auto ptr = take(4);
+        // fprintf(stderr, "-%p\n", *int*:ptr.ptr);
+        auto pp = *int*:ptr.ptr;
+        if (!pp) continue; // null free is always okay
+        for (int i = list.length - 1; i >= 0; --i) {
+          ref entry = list[i];
+          if (entry && *int*:entry.ptr == pp) {
+            entry = null;
+            break;
+          }
+        } then {
+          fprintf(stderr, " structural error: free without matching malloc\n");
+          fail;
+        }
+      } else fail "what $code";
+    }
+    fprintf(stderr, "computing output of %i\n", list.length);
+    int leaked;
+    for auto entry <- list if entry {
+      fixedlog ubyte[]: "+";
+      int[] list = int[]: entry;
+      fixedlog entry;
+      leaked += list[1];
+    }
+    fprintf(stderr, "%i bytes leaked from %.*s\n", leaked, file);
+  }
+}

@@ -1,0 +1,92 @@
+module memprint;
+
+import std.file, std.string, std.hashmap, std.util, std.sort;
+
+void main(string[] args) {
+  for auto file <- args {
+    Hashmap!(string, int) allocsizes;
+    fprintf(stderr, "reading %.*s into memory\n", file);
+    auto fd = readAll file;
+    fprintf(stderr, "read %i\n", fd.length);
+    string[auto~] labels;
+    as_type x (string info, int sz, x children)[auto~] tree;
+    void register(int sz, int[] path) {
+      auto currentp = &tree;
+      alias current = *currentp;
+      for auto i <- path {
+        auto text = labels[i];
+        type-of current.ptr ptr;
+        for ref entry <- current if entry.info == text {
+          ptr = &entry;
+          break;
+        } then {
+          type-of current[0] fresh;
+          current ~= fresh;
+          ptr = &current[$-1];
+        }
+        ptr.info = text;
+        ptr.sz += sz;
+        currentp = &ptr.children;
+      }
+    }
+    void print_tree() {
+      void recurse(int depth, type-of tree current) {
+        void print_entry(type-of tree[0]* entry) {
+          for int i <- 0..depth write " |";
+          writeln scope= "-+$(entry.sz) $(entry.info)";
+        }
+        qsort(current, λ(type-of current[0] a, b) { return a.sz >= b.sz; });
+        for ref entry <- current {
+          print_entry &entry;
+          recurse(depth + 1, entry.children);
+        }
+      }
+      recurse(0, tree);
+    }
+    ubyte[][auto~] list;
+    ubyte[] take(int i) {
+      (ubyte[] res, fd) = fd[(0..i, i..$)];
+      return res;
+    }
+    int takei() {
+      auto d = take(4);
+      return *int*: d.ptr;
+    }
+    auto stub = file.endsWith(".txt");
+    fprintf(stderr, "processing data\n");
+    while fd.length {
+      auto code = take(1)[0];
+      if (code == "*") {
+        // fprintf(stderr, "*\n");
+        auto len = takei();
+        // fprintf(stderr, " %i\n", len);
+        auto data = take(len);
+        labels ~= string: data;
+      } else if (code == "+") {
+        int idlen = (int[]: fd[0..12])[2];
+        list ~= take(12 + 4 * idlen);
+      } else if (code == "-") {
+        auto ptr = take(4);
+        // fprintf(stderr, "-%p\n", *int*:ptr.ptr);
+        auto pp = *int*:ptr.ptr;
+        if (!pp) continue; // null free is always okay
+        for (int i = list.length - 1; i >= 0; --i) {
+          ref entry = list[i];
+          if (entry && *int*:entry.ptr == pp) {
+            entry = null;
+            break;
+          }
+        } then {
+          fprintf(stderr, " structural error: free without matching malloc\n");
+          fail;
+        }
+      } else fail "what $code";
+    }
+    fprintf(stderr, "computing output of %i\n", list.length);
+    for auto entry <- list if entry {
+      int[] list = int[]: entry;
+      register list[(1, 3..$)];
+    }
+    print_tree;
+  }
+}

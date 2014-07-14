@@ -1,0 +1,49 @@
+module std.memprof;
+
+import c.stdio, std.hashmap, std.process, std.file;
+
+void setupMemLogging(string filename) {
+  auto memlog = writefile filename;
+  auto backup = mem;
+  depend mem "defines malloc, calloc, calloc_atomic, free, special_magic";
+  ref allocated_bytes = *new int;
+  int mapcount;
+  Hashmap!(string, int) stringmap;
+  int getCachedId(string s) {
+    int entry;
+    if (auto p = stringmap.get(s)) {
+      entry = *p;
+      s.free;
+    } else {
+      entry = mapcount ++;
+      memlog ubyte[]: "*";
+      memlog ubyte[]: [s.length];
+      memlog ubyte[]: s;
+      stringmap.insert(s, entry);
+    }
+    return entry;
+  }
+  mem.malloc_dg = new λ(int sz) using scoped mem {
+    mem = backup; // not worth counting
+    auto res = backup.malloc_dg(sz);
+    scope list = read-fcc-backtrace();
+    scope ids = [for l <- list: getCachedId "$(l.fun) $(l.pos)"].eval[];
+    memlog ubyte[]: "+";
+    memlog ubyte[]: [size_t:res, size_t:sz, size_t:ids.length];
+    for int entry <- ids {
+      memlog ubyte[]: [entry];
+    }
+    return res;
+  };
+  mem.calloc_dg = new λ(int i, k) {
+    auto res = mem.malloc(i*k);
+    memset(res, 0, i*k);
+    return res;
+  };
+  mem.calloc_atomic_dg = null;
+  mem.free_dg = new λ(void* p, int sz = 0) {
+    memlog ubyte[]: "-";
+    memlog ubyte[]: [p];
+    backup.free_dg(p, sz);
+  };
+}
