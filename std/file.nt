@@ -76,7 +76,21 @@ int open(string file, int file-mode = read-mode, mode_t perms = -1) {
 
 /*Function: readAll
   Completely reads a file from the drive. */
-ubyte[] readAll(string file) { return join readfile open file; } // God I love this line so hard.
+ubyte[] readAll(string file) {
+  auto fd = open file;
+  fstat(fd, &stat st);
+  auto res = new ubyte[] st.st_size;
+  size_t offset, size;
+  do {
+    size = size_t: read(fd, res.ptr + offset, res.length - int:offset);
+  } while size > 0 {
+    offset += size;
+  }
+  if (int:size == -1) raise new ErrnoError;
+  assert(offset == size_t:res.length);
+  close fd;
+  return res;
+}
 
 class WriterError : Error {
   void init() { super.init "WriterError"; }
