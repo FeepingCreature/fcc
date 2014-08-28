@@ -75,15 +75,15 @@ Returns the combined URL of the two parameters. For instance, if *from* is "goog
 reassign string followLink(string from, string to) {
   // absolute link
   if (to.find("://") || to.startsWith("//")) return to;
-  string scheme = from.between("", "://");
-  if (!scheme) raise new Error "'$from' is not a valid HTTP URL! ";
+  string schema = from.between("", "://");
+  if (!schema) raise new Error "'$from' is not a valid URL! ";
+  from = from.between("://", "");
   if to.startsWith "/"
-    return "$scheme://" ~ from.between("://", "/") ~ to;
-  int pos_param = from.find("?");
-  if pos_param == -1 pos_param = from.length;
-  auto pos_last_slash = from[7..pos_param].rfind("/");
-  if pos_last_slash == -1 raise new Error "No separator slash in $from! ";
-  return from[0..pos_last_slash + 7 + 1] ~ to;
+    return "$schema://" ~ from.between("", "/") ~ to;
+  if to.startsWith "?"
+    return "$schema://" ~ from.between("", "?") ~ to;
+  if (!from.find "/") raise new Error "no separator slash in \"$from\"";
+  return "$schema://" ~ from.between("", "/", =>reverse-search, =>reverse-order) ~ "/" ~ to;
 }
 
 /*Function: urlEncode
