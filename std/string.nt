@@ -12,7 +12,10 @@ struct FindResult {
 Searches for a substring.
 
 Returns: a value that casts to true if result was found, and to int to give the position where it was found.*/
-FindResult find(string text, string match) {
+FindResult find(string text, string match, bool caseinsensitive = false) {
+  if (caseinsensitive) {
+    return find (scope= toLower text, scope= toLower match);
+  }
   for (int i = 0; i <= text.length - match.length; ++i) {
     // not worth to call glibc so often
     // if (text[i .. i+match.length] == match) return FindResult:i;
@@ -25,7 +28,10 @@ FindResult find(string text, string match) {
 
 /*Function: rfind
 Like find, but searches from the back*/
-FindResult rfind(string text, string match) {
+FindResult rfind(string text, string match, bool caseinsensitive = false) {
+  if (caseinsensitive) {
+    return rfind (scope= toLower text, scope= toLower match);
+  }
   for (int i = text.length - match.length; i >= 0; --i) {
     // not worth to call glibc so often
     // if (text[i .. i+match.length] == match) return FindResult:i;
@@ -63,35 +69,42 @@ Otherwise, return null.
 =>reverse-order: search forwards for *to*, then backwards for *from*.
 =>reverse-search,=>reverse-order: search backwards for *to*, then backwards for *from*.
 */
-reassign string between(string s, string from, string to, bool reverse-search = false, reverse-order = false) {
+reassign string between(string s, string from, string to, bool reverse-search = false, reverse-order = false, bool caseinsensitive = false) {
   if (!reverse-order) {
     int pos1;
     if (from.length) {
-      if (reverse-search) pos1 = rfind(s, from);
-      else pos1 = find(s, from);
+      if (reverse-search) pos1 = rfind(s, from, caseinsensitive);
+      else pos1 = find(s, from, caseinsensitive);
     }
     if (pos1 == -1) return null;
     s = s[pos1 + from.length .. $];
     
     int pos2 = s.length;
-    if (to.length) pos2 = find(s, to);
+    if (to.length) pos2 = find(s, to, caseinsensitive);
     if (pos2 == -1) return null;
     s = s[0 .. pos2];
   } else {
     int pos2 = s.length;
     if (to.length) {
-      if (reverse-search) pos2 = rfind(s, to);
-      else pos2 = find(s, to);
+      if (reverse-search) pos2 = rfind(s, to, caseinsensitive);
+      else pos2 = find(s, to, caseinsensitive);
     }
     if (pos2 == -1) return null;
     s = s[0 .. pos2];
     
     int pos1 = 0;
-    if (from.length) pos1 = rfind(s, from);
+    if (from.length) pos1 = rfind(s, from, caseinsensitive);
     if (pos1 == -1) return null;
     s = s[pos1 + from.length .. $];
   }
   return s;
+}
+
+/* Function: ibetween
+Like between(), but case-insensitive
+*/
+reassign string ibetween(string s, string from, string to, bool reverse-search = false, reverse-order = false) {
+  return between(s, from, to, reverse-search, reverse-order, caseinsensitive => true);
 }
 
 /*Template: betweens
