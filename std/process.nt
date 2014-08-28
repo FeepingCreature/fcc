@@ -86,9 +86,9 @@ platform(default) {
       if (child == 0) {
         dup2(hdl_sysward[0], 0); // overwrite standard input
         dup2(hdl_selfward[1], 1); // overwrite standard output
-        auto res = execvp(fp, argv);
-        if (res == -1) exit(-errno);
-        exit(res);
+        // The exec() functions only return if an error has occurred.
+        execvp(fp, argv);
+        exit(-errno);
       }
       if (0 != .close hdl_sysward[0]) fail; // read side
       if (0 != .close hdl_selfward[1]) fail; // write side

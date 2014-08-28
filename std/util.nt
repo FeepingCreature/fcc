@@ -435,9 +435,11 @@ template uniq(T) {
   class UniqIter : Iterator!E {
     I sup;
     Hashset!E seen;
+    bool done;
     bool advance() {
+      if done return false;
       while true {
-        if !(this.value <- sup) return false;
+        if !(this.value <- sup) { done = true; seen.free; return false; }
         if (!seen.has this.value) {
           seen.add this.value;
           return true;
