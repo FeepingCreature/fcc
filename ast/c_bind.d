@@ -445,10 +445,16 @@ src_cleanup_redo: // count, then copy
       if (s3.accept("(") && (ty = matchType(s3), ty) && s3.accept(")") && readCExpr(s3, res)) {
         IType alt;
         if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
+        // work around numeric overflow issue for (unsigned)-1 - accept size_t, then hardcast to int
+        if (Single!(SysInt) == ty) alt = Single!(SizeT);
         res = collapse(forcedConvert(res));
         // res = reinterpret_cast(ty, res);
-        if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
+        // IType[] tried;
+        if (!gotImplicitCast(res, ty, (IType it) { /*tried ~= it;*/ return test(it == ty || alt && it == alt); })) {
+          // logln("reject ", source.nextText(), " because no conversion of ", res, " to ", ty, " (tried ", tried, ")");
           return false;
+        }
+        res = reinterpret_cast(ty, res);
         source = s3;
         return true;
       }
