@@ -1604,7 +1604,9 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
       // always -O1 the llc, since it's cheap
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 -ffunction-sections -fdata-sections "~march~cpumode()~" - -filetype=obj -o ", objname);
+      string funsecs = "-function-sections -data-sections";
+      if (llvmver() <= 34) funsecs = "-ffunction-sections -fdata-sections";
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 "~funsecs~" "~march~cpumode()~" - -filetype=obj -o ", objname);
     }
     
     if (!emulateGCCOutput) {

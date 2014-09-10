@@ -1017,8 +1017,13 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         flags ~= "weak_odr ";
         putSection(lf, "module", "@", name, ".full = "~flags~"global ", toLLVMArray(-1, ci));
         putSection(lf, "module", "@", cd  , ".full = "~flags~"global ", toLLVMArray(-1, cda));
-        putSection(lf, "module", "@", name, " = alias "~flags~"i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
-        putSection(lf, "module", "@", cd, " = alias "~flags~"i8* bitcast([", cda.length, " x i8*]* @", cd, ".full to i8*)");
+        if (llvmver() >= 36) {
+          putSection(lf, "module", "@", name, " = "~flags~" alias i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
+          putSection(lf, "module", "@", cd, " = "~flags~" alias i8* bitcast([", cda.length, " x i8*]* @", cd, ".full to i8*)");
+        } else {
+          putSection(lf, "module", "@", name, " = alias "~flags~"i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
+          putSection(lf, "module", "@", cd, " = alias "~flags~"i8* bitcast([", cda.length, " x i8*]* @", cd, ".full to i8*)");
+        }
       }
     }
     void _add(string name, Object obj) {
