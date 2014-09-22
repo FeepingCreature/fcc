@@ -627,9 +627,9 @@ void ast_math_constr() {
     return fastalloc!(AsmDoubleBinopExpr)(ex1, ex2, op);
   }
   Expr handleLongMath(string op, Expr ex1, Expr ex2) {
-    if (Single!(Long) != resolveTup(ex1.valueType())
+    /*if (Single!(Long) != resolveTup(ex1.valueType())
      && Single!(Long) != resolveTup(ex2.valueType()))
-      return null;
+      return null;*/
     if (!gotImplicitCast(ex1, Single!(Long), &isLong) || !gotImplicitCast(ex2, Single!(Long), &isLong))
       return null;
     
@@ -648,8 +648,8 @@ void ast_math_constr() {
   defineOps(&handleIntMath);
   defineOps(&handleFloatMath);
   defineOps(&handleDoubleMath);
-  defineOps(&handleLongMath);
   defineOps(&handlePointerMath, true);
+  defineOps(&handleLongMath);
   defineOp("^", delegate Expr(Expr ex1, Expr ex2) {
     if (gotImplicitCast(ex2, Single!(SysInt), &isInt)) {
       if (auto ie = fastcast!(IntExpr)(collapse(ex2))) {
