@@ -26,7 +26,7 @@ macro("tree.stmt.where", "413", "where") `
                       (indent msg1)
                       (indent (strexreplace msg2 "§" "and "))
                       "\nthus " (make-repr c) " was false"))))))))
-            '(if (decompose-compare c 'a 'b)
+            '(if (or (decompose-compare c 'a 'b) (and (decompose-exprwrap c 'cex) (decompose-compare cex 'a 'b)))
               '(last
                 (def 'ex (reinterpret-cast (lookup "bool") (make-condexpr c)))
                 (cont (make-concat
@@ -34,10 +34,10 @@ macro("tree.stmt.where", "413", "where") `
                   (if (is-const-int a)
                     '(if (is-const-int b)
                       '""
-                      '(make-concat " (" (make-repr b) " = " (make-format b) ")"))
+                      '(make-concat " ( because " (make-repr b) " = " (make-format b) ")"))
                     '(if (is-const-int b)
-                      '(make-concat " (" (make-repr a) " = " (make-format a) ")")
-                      '(make-concat " ("
+                      '(make-concat " (because " (make-repr a) " = " (make-format a) ")")
+                      '(make-concat " (because "
                         (make-repr a) " = " (make-format a)
                         ", " (make-repr b) " = " (make-format b)
                         ")"))))))
