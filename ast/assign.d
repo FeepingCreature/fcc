@@ -23,7 +23,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln(" <- "[], e.valueType());
       logln("(", resolveType(tvt), ", ", resolveType(evt), ")");
       breakpoint();
-      throw new Exception("Assignment type mismatch! "[]);
+      throw new Exception(Format("Assignment type mismatch: cannot assign ", e.valueType(), " to ", t.valueType()));
     }
     target = t;
     value = e;
