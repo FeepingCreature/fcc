@@ -2,7 +2,8 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, std.async, c.unistd, c.errno;
+import std.string, std.math, std.async, c.unistd, c.errno;
+static import std.file;
 platform(*-mingw32) {
   pragma(define, "_WIN32_WINNT=0x0501"); // target xp
   import c.winsock2, c.ws2tcpip;
@@ -23,28 +24,35 @@ class Address {
 /*Class: TcpAddress
 A TCP address*/
 class TcpAddress : Address {
-  sockaddr_in saddr;
+  ubyte[] saddr;
   (sockaddr*, int) getAddrHandle() {
-    return (sockaddr*:&saddr, size-of sockaddr_in);
+    return (sockaddr*:saddr.ptr, saddr.length);
   }
   Address dup() using new TcpAddress {
-    that.saddr = this.saddr;
+    that.saddr = this.saddr.dup;
     return that;
   }
   void init() { }
   /*Function: init
   Create a TCP address from host name and port*/
   void init(string dns, short port) {
-    using saddr {
-      addrinfo* addr;
-      getaddrinfo(toStringz dns, null, null, &addr);
-      if (!addr) {
-        fail "Could not resolve $dns";
-      }
-      *sockaddr*:&saddr = *addr.ai_addr;
-      sin_family = AF_INET;
-      sin_port = htons(port);
+    addrinfo* addr;
+    getaddrinfo(toStringz dns, null, null, &addr);
+    if (!addr) {
+      fail "Could not resolve $dns";
     }
+    while addr {
+      if (addr.ai_family == AF_INET) {
+        int required_size = max(size-of sockaddr_in, addr.ai_addrlen);
+        saddr = new ubyte[] required_size;
+        saddr[0..addr.ai_addrlen] = (ubyte*:addr.ai_addr)[0..addr.ai_addrlen];
+        (sockaddr_in*:saddr.ptr).sin_family = AF_INET;
+        (sockaddr_in*:saddr.ptr).sin_port = htons(port);
+        return;
+      }
+      addr = addr.ai_next;
+    }
+    fail "No IPv4 address found for $dns";
   }
 }
 
@@ -127,10 +135,11 @@ class Socket : AsyncHandle {
   /*Function: open*/
   void open(TcpAddress ta) {
     platform(default) {
-      auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+      auto res = c.sys.socket.connect (sockfd, ta.getAddrHandle());
+      if (res == -1) raise new std.file.ErrnoError();
     }
     platform(*-mingw32) {
-      auto res = c.winsock2.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+      auto res = c.winsock2.connect (sockfd, ta.getAddrHandle());
     }
   }
   /*Function: recv
