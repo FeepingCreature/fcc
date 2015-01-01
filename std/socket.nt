@@ -17,24 +17,13 @@ platform(default) {
 /*Class: Address
 An internet address*/
 class Address {
-  (sockaddr*, int) getAddrHandle() { raise new Error "getAddrHandle not implemented"; return (sockaddr*:null, 0); }
-  Address dup() { raise new Error "dup not implemented"; }
-}
-
-/*Class: TcpAddress
-A TCP address*/
-class TcpAddress : Address {
   ubyte[] saddr;
   (sockaddr*, int) getAddrHandle() {
     return (sockaddr*:saddr.ptr, saddr.length);
   }
-  Address dup() using new TcpAddress {
-    that.saddr = this.saddr.dup;
-    return that;
-  }
   void init() { }
   /*Function: init
-  Create a TCP address from host name and port*/
+  Create an Address from host name and port*/
   void init(string dns, short port) {
     addrinfo* addr;
     getaddrinfo(toStringz dns, null, null, &addr);
@@ -50,16 +39,40 @@ class TcpAddress : Address {
         (sockaddr_in*:saddr.ptr).sin_port = htons(port);
         return;
       }
+      if (addr.ai_family == AF_INET6) {
+        int required_size = max(size-of sockaddr_in6, addr.ai_addrlen);
+        saddr = new ubyte[] required_size;
+        saddr[0..addr.ai_addrlen] = (ubyte*:addr.ai_addr)[0..addr.ai_addrlen];
+        (sockaddr_in*:saddr.ptr).sin_family = AF_INET6;
+        (sockaddr_in*:saddr.ptr).sin_port = htons(port);
+        return;
+      }
       addr = addr.ai_next;
     }
-    fail "No IPv4 address found for $dns";
+    fail "No IP address found for $dns";
+  }
+  Address dup() {
+    auto res = new Address;
+    res.saddr = saddr.dup;
+    return res;
+  }
+  string asString() {
+    auto required = max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN) + 1;
+    scope buffer = new char[] required;
+    auto res = getnameinfo(sockaddr*:saddr.ptr, saddr.length, buffer.(ptr, length), null, 0, NI_NUMERICHOST);
+    if (res != 0) fail CToString gai_strerror(res);
+    return CToString(buffer.ptr).dup;
   }
 }
+
+alias TcpAddress = Address; // TODO implement "alias deprecated"
 
 class SocketError : Error {
   void init(int i) { super.init("socket operation failed: $i"); }
   void init(string s) { super.init "socket operation failed: $s"; }
 }
+
+alias INVALID_SOCKET = -1;
 
 /*Class: Socket
 A BSD Socket*/
@@ -69,10 +82,12 @@ class Socket : AsyncHandle {
   Address boundAddr;
   /*Function: close*/
   void close() {
+    if (sockfd == INVALID_SOCKET) return;
     auto err = c.unistd.close(sockfd);
     if (err == -1) {
       raise new Error "While closing socket: $(CToString strerror errno)";
     }
+    sockfd = INVALID_SOCKET;
   }
   void free() { boundAddr?.free; super.free; }
   /*Function: init*/
@@ -85,8 +100,8 @@ class Socket : AsyncHandle {
   /*Function: init*/
   void init(string domain, short port) {
     init;
-    scope ta = new TcpAddress(domain, port);
-    open ta;
+    scope addr = new Address(domain, port);
+    open addr;
   }
   (bool got, float value) myTimeout;
   /*Function: setTimeout
@@ -133,13 +148,13 @@ class Socket : AsyncHandle {
   }
   // alias isOpen = sockfd;
   /*Function: open*/
-  void open(TcpAddress ta) {
+  void open(Address addr) {
     platform(default) {
-      auto res = c.sys.socket.connect (sockfd, ta.getAddrHandle());
+      auto res = c.sys.socket.connect (sockfd, addr.getAddrHandle());
       if (res == -1) raise new std.file.ErrnoError();
     }
     platform(*-mingw32) {
-      auto res = c.winsock2.connect (sockfd, ta.getAddrHandle());
+      auto res = c.winsock2.connect (sockfd, addr.getAddrHandle());
     }
   }
   /*Function: recv
@@ -246,7 +261,7 @@ class Socket : AsyncHandle {
 /*Function: connect
 Open a socket for the given domain/port*/
 Socket connect(string domain, short port) using new Socket {
-  that.open new TcpAddress(domain, port);
+  that.open new Address(domain, port);
   return that;
 }
 
