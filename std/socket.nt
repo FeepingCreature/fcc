@@ -255,6 +255,15 @@ class Socket : AsyncHandle {
       }
     }
   }
+  Address getRemoteAddress() {
+    sockaddr_in address;
+    if (getsockname(sockfd, sockaddr*:&address, &int result-size = size-of sockaddr_in) == -1) {
+      raise new std.file.ErrnoError;
+    }
+    auto res = new Address;
+    res.saddr = (ubyte[]:(&address)[0..1]).dup;
+    return res;
+  }
 }
 
 /*Section: std.socket*/
