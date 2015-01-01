@@ -27,3 +27,37 @@ string encode(ubyte[] data) {
   }
   return res;
 }
+
+int base64_dec_index(char ch) {
+  if ("A" <= ch <= "Z") return ch - "A";
+  if ("a" <= ch <= "z") return ch - "a" + 26;
+  if ("0" <= ch <= "9") return ch - "0" + 52;
+  if (ch == "+") return 62;
+  if (ch == "/") return 63;
+  fail "unknown base64 character: '$ch'";
+}
+
+(ubyte, ubyte, ubyte) base64_dec_partial(char a, b, c, d) {
+  int value = ((base64_dec_index a) << 18)
+            | ((base64_dec_index b) << 12)
+            | ((base64_dec_index c) << 6)
+            | ((base64_dec_index d));
+  return (ubyte:$ value >> 16, ubyte:$ (value & 0xff00) >> 8, ubyte:$ value & 0xff);
+}
+
+ubyte[] decode(string data) {
+  auto blockcount = data.length / 4, rest = data[blockcount * 4 .. $];
+  assert(rest.length == 0 || rest.length == 2 || rest.length == 3);
+  auto res = new ubyte[] blockcount * 3 + [0, 0, 1, 2][rest.length];
+  for int i <- 0..blockcount {
+    int d = i * 4, r = i * 3;
+    res[(r,r+1,r+2)] = base64_dec_partial data[(d,d+1,d+2,d+3)];
+  }
+  if (rest.length == 2) {
+    res[blockcount*3] = base64_dec_partial(rest[(0,1)],char:"A",char:"A")[0];
+  }
+  if (rest.length == 3) {
+    res[(blockcount*3,blockcount*3+1)] = base64_dec_partial(rest[(0,1,2)],char:"A")[(0,1)];
+  }
+  return res;
+}
