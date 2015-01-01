@@ -1,6 +1,6 @@
 module ast.tuple_access;
 
-import ast.base, ast.tuples, ast.structure, ast.scopes;
+import ast.base, ast.tuples, ast.structure, ast.scopes, ast.literals;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   if (auto rt = fastcast!(RefTuple) (tuple)) {
