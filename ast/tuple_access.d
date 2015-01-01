@@ -383,6 +383,13 @@ extern(C) Expr _make_tupleof(Structure str, Expr ex) {
   return mkTupleExpr(reslist);
 }
 
+pragma(set_attribute, _make_namesof, externally_visible);
+extern(C) Expr _make_namesof(Structure str, Expr ex) {
+  auto ml = str.members();
+  Expr[] reslist;
+  foreach (member; ml) reslist ~= mkString(member.name);
+  return mkTupleExpr(reslist);
+}
 
 import ast.casting, ast.pointer, ast.vardecl, ast.conditionals;
 Object gotForcedTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
