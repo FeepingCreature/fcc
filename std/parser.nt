@@ -129,4 +129,8 @@ context parser {
       return res;
     }
   }
+  string getString(string sep = "\"") {
+    if (auto res = gotString(sep)) return res;
+    fail "string expected";
+  }
 }
