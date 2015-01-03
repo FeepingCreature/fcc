@@ -131,7 +131,7 @@ template mkalias(alias A) {
 mixin mkalias!(
   "html", "head", "title", "body", "p", "a",
   "div", "span", "iframe",
-  "h1", "h2", "h3", "br", "b", "i", "u",
+  "h1", "h2", "h3", "h4", "h5", "br", "b", "i", "u",
   "ul", "li", "img", "text",
   "table", "tr", "th", "td",
   "form", "input");

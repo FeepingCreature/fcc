@@ -15,7 +15,7 @@ Download a site. HTTP/1.0, very WIP.
 Parameters:
 url - URL
 onRedirect - Called when the request is redirected */
-ubyte[] download(string url, void delegate(string) onRedirect = null, int timeout = 0) {
+ubyte[] download(string url, void delegate(string) onRedirect = null, int timeout = 0, int* responsecode = null) {
   auto original-url = url;
   {
     string rest = url.startsWith("http://");
@@ -27,7 +27,7 @@ ubyte[] download(string url, void delegate(string) onRedirect = null, int timeou
   (domain, string portstr) = slice (domain, ":");
   short port = 80;
   if portstr.length port = short:portstr.atoi();
-  auto sock = connect(domain, port);
+  auto sock = new Socket(domain, port);
   if (timeout) sock.setTimeout(timeout);
   void sendLine(string line) {
     sock.sendAll ubyte[]:line;
@@ -42,10 +42,14 @@ ubyte[] download(string url, void delegate(string) onRedirect = null, int timeou
   if (headerstr.find("Location: ")) {
     auto url2 = original-url.followLink headerstr.between("Location: ", "\r\n");
     if (onRedirect) { onRedirect url2.dup; }
-    return download url2;
+    return download (url2, onRedirect, timeout, responsecode);
   }
   // careful: response will be freed on function end
   auto header = headerstr.split "\r\n";
+  // HTTP/1.1 200 OK
+  string (proto, code_str, message) = split(header[0], " ")[(0, 1, 2)];
+  if (responsecode) *responsecode = atoi code_str;
+  
   return ubyte[]:response.dup;
 }
 
@@ -88,49 +92,51 @@ reassign string followLink(string from, string to) {
 
 /*Function: urlEncode
 Encodes a string using percent encoding for use in HTTP. */
-string urlEncode(string uri) {
-  //ones that don't need encoding: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~";
-  string encoded;
-  for (int i=0;i<uri.length;i++) {
-    if safe.find "$(uri[i])"
-      encoded="$encoded$(uri[i])";
-    else {
-      string a = std.string.toString(int:uri[i],16);
-      if a.length<2
-        a="0$a";
-      encoded="$encoded%$a";
+string urlEncode(string data, string extra_safe = "-_.~") {
+  char[auto~] encoded;
+  for char ch <- data {
+    if (("A" <= ch <= "Z") || ("a" <= ch <= "z") || ("0" <= ch <= "9") || extra_safe.find((&ch)[0..1])) {
+      encoded ~= ch;
+    } else {
+      scope a = std.string.toString(ch, 16);
+      scope string b;
+      if (a.length < 2) b = "0$a";
+      else b = a.dup;
+      encoded ~= "%";
+      encoded ~= b;
     }
   }
-  return encoded;
+  return encoded[];
 }
 
 /*Function: pathEncode
 Does exactly what <urlEncode> does, except / is a safe character. */
 string pathEncode(string uri) {
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/";
-  string encoded;
-  for (int i=0;i<uri.length;i++) {
-    if safe.find "$(uri[i])"
-      encoded="$encoded$(uri[i])";
-    else {
-      string a=std.string.toString(int:uri[i],16);
-      if a.length<2
-        a="0$a";
-      encoded="$encoded%$a";
-    }
-  }
-  return encoded;
+  return urlEncode(uri, "-_.~/");
 }
 
-// TODO: make this function
-/*string urlDecode(string uri) {
-  for (int i=0;i<uri.length;i++) {
-    if uri[i] == "%"
-      uri = "$(uri[0..i])";
+/*Function:urlDecode
+Inverse of urlEncode.*/
+string urlDecode(string data) {
+  char[auto~] decoded;
+  auto iter = data.iterator;
+  for char ch <- iter {
+    if (ch != "%") decoded ~= ch;
+    else {
+      bool success = (char a <- iter) && (char b <- iter);
+      if (!success) fail "two characters expected after %";
+      int hexdecode(char ch) {
+        if ("0" <= ch <= "9") return ch - "0";
+        if ("a" <= ch <= "f") return ch - "a" + 10;
+        if ("A" <= ch <= "F") return ch - "A" + 10;
+        fail "character '$ch' is not hex";
+      }
+      int i = hexdecode a << 4 | hexdecode b;
+      decoded ~= char:ubyte:i;
+    }
   }
-  return uri;
-}*/
+  return decoded[];
+}
 
 /*Function: createURI
 Assembles a URI from the basic parts, used by <HTTP-URI>'s <toString> function.*/
@@ -237,7 +243,7 @@ int sendRequest(HTTP-URI url, string method = "GET",
   }
   
   // connect to server
-  auto sock=connect(url.host,short:url.port);
+  auto sock = new Socket(url.host,short:url.port);
   
   void sendLine(string line) {
     sock.sendAll ubyte[]:line;
