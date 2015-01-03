@@ -21,6 +21,7 @@ class Address {
   (sockaddr*, int) getAddrHandle() {
     return (sockaddr*:saddr.ptr, saddr.length);
   }
+  int family() { return (sockaddr_in*:saddr.ptr).sin_family; }
   void init() { }
   /*Function: init
   Create an Address from host name and port*/
@@ -91,16 +92,16 @@ class Socket : AsyncHandle {
   }
   void free() { boundAddr?.free; super.free; }
   /*Function: init*/
-  void init(bool bare = false) {
+  void init(bool bare = false, int family = AF_INET) {
     if (!bare) {
-      sockfd = socket (AF_INET, SOCK_STREAM, 0);
+      sockfd = socket (family, SOCK_STREAM, 0);
       linger(true, 30); // default: linger 30s
     }
   }
   /*Function: init*/
   void init(string domain, short port) {
-    init;
     scope addr = new Address(domain, port);
+    init(family => addr.family());
     open addr;
   }
   (bool got, float value) myTimeout;
@@ -264,14 +265,6 @@ class Socket : AsyncHandle {
     res.saddr = (ubyte[]:(&address)[0..1]).dup;
     return res;
   }
-}
-
-/*Section: std.socket*/
-/*Function: connect
-Open a socket for the given domain/port*/
-Socket connect(string domain, short port) using new Socket {
-  that.open new Address(domain, port);
-  return that;
 }
 
 class sockreader : Iterator!ubyte[] {
