@@ -390,3 +390,25 @@ void dumpClassGraph(string referenceClass = null, bool includeStdMods = false, i
     }
   }
 }
+
+string getDataPath(string appname) {
+  platform(default) {
+    if ((auto datapath = getenv "XDG_DATA_HOME") && datapath.length) return datapath.sub("appname");
+    return getenv("HOME").sub(".local").sub("share").sub(appname);
+  }
+  platform(*-mingw*) {
+    return getenv("APPDATA").sub(appname);
+  }
+  fail "Unsupported platform!";
+}
+
+string getConfigPath(string appname) {
+  platform(default) {
+    if ((auto confpath = getenv "XDG_CONFIG_HOME") && datapath.length) return confpath.sub("appname");
+    return getenv("HOME").sub(".config").sub(appname);
+  }
+  platform(*-mingw*) {
+    return getenv("APPDATA").sub(appname);
+  }
+  fail "Unsupported platform!";
+}
