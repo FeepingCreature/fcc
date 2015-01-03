@@ -1,0 +1,59 @@
+module std.ini;
+
+import std.file, std.string;
+
+class ConfigFile {
+  string file;
+  void init(string file) { this.file = file; }
+  bool filterLine(int i, string line, string* key, string* value) {
+    if (auto precomment = line.between("", "#"))
+      line = precomment;
+    strip line;
+    if (!line.length) return false;
+    if (!line.find("="))
+      fail "$file:$i: invalid syntax, key=value expected";
+    string (lkey, lvalue) = line.slice("=");
+    strip lkey; strip lvalue;
+    *key = lkey;
+    *value = lvalue;
+    return true;
+  }
+  string getKey(string key) {
+    if (!exists file) return null;
+    scope data = string: readAll file;
+    scope lines = data.split("\n");
+    for int i <- ints && auto line <- lines {
+      string lkey, lvalue;
+      if (!filterLine(i, line, &lkey, &lvalue))
+        continue;
+      if (lkey == key) return lvalue;
+    }
+    return null;
+  }
+  // TODO lock the configuration file somehow?
+  void setKey(string key, string value) {
+    scope string data;
+    if (exists file) data = string: readAll file;
+    else data = new char[] 0;
+    scope lines = data.split("\n");
+    bool setLine;
+    for int i <- ints && ref line <- lines {
+      string lkey, lvalue;
+      if (!filterLine(i, line, &lkey, &lvalue))
+        continue;
+      if (lkey == key) {
+        line = "$key=$value";
+        setLine = true;
+        break;
+      }
+    }
+    scope char[auto~] resdata;
+    resdata ~= scope= lines.join("\n");
+    if (!setLine) {
+      if (resdata.length) resdata ~= "\n";
+      resdata ~= "$key=$value";
+    }
+    resdata ~= "\n";
+    writeAll(file, ubyte[]: resdata[]);
+  }
+}
