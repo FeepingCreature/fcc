@@ -1,0 +1,205 @@
+module std.lib.sqlite3;
+
+import c.sqlite3, std.string;
+
+pragma(lib, "sqlite3");
+
+extern(C) {
+  int sqlite3_exec(sqlite3*, char*, int function(void*, int, char**, char**), void*, char**);
+  void sysFree(void* c) { free c; }
+  int sqlite3_bind_text(sqlite3_stmt*, int, char*, int, void function(void*));
+  int sqlite3_bind_blob(sqlite3_stmt*, int, void*, int, void function(void*));
+}
+
+int callback(void* threadinfo, int argc, char** argv, char** colName) {
+  auto _threadlocal = getThreadlocal;
+  while int i <- 0..argc {
+    writeln "$(CToString colName[i]) = $(CToString argv[i])";
+  }
+  writeln "";
+  return 0;
+}
+
+void* mallocDupData(byte[] data) {
+  auto res = malloc data.length;
+  memcpy(res, data.ptr, data.length);
+  return res;
+}
+
+class SQLite3Error : Error {
+  void init(string s) { super.init "SQLite3Error: $s"; }
+}
+
+class SQLite3Busy : SQLite3Error {
+  void init() { super.init "SQLite3Busy: Database busy. "; }
+}
+
+interface IQueryIterator {
+  void finalize();
+  bool isFinalized();
+}
+
+shared (string, int, int)[] profiledata;
+
+shared bool profile;
+void record(string qs, int ms) {
+  if (!profile) return;
+  // TODO: sync
+  for ref tup <- profiledata {
+    if (tup[0] == qs) { tup[1] ++; tup[2] += ms; return; }
+  }
+  profiledata ~= (qs, 1, ms);
+}
+
+template QueryIterator(T) {
+  class QueryIterator : IQueryIterator {
+    Database db;
+    sqlite3_stmt* stmt;
+    int bindCount;
+    string sql;
+    bool finalized;
+    bool isFinalized() { return finalized; }
+    template addBind(T) {
+      int addBind(T t) {
+        static if types-equal(T, int) || types-equal(T, bool) {
+          return sqlite3_bind_int(stmt, bindCount ++, t);
+        }
+        static if types-equal(T, float) || types-equal(T, double) {
+          return sqlite3_bind_double(stmt, bindCount ++, double:t);
+        }
+        static if types-equal(T, string) {
+          return sqlite3_bind_text(stmt, bindCount ++, char*: mallocDupData byte[]:t, t.length, &sysFree);
+        }
+        static if types-equal(T, byte[]) || types-equal(T, ubyte[]) {
+          return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData byte[]:t, t.length, &sysFree);
+        }
+        raise new Error "Unknown bind type $(string-of T)";
+      }
+    }
+    template getColumn(T) {
+      T getColumn(int i) {
+        static if types-equal(T, int) {
+          return sqlite3_column_int(stmt, i);
+        }
+        static if types-equal(T, float) {
+          return float:sqlite3_column_double(stmt, i);
+        }
+        static if types-equal(T, string) {
+          auto resptr = sqlite3_column_text(stmt, i);
+          auto reslen = sqlite3_column_bytes(stmt, i);
+          return resptr[0..reslen];
+        }
+        static if types-equal(T, byte[]) || types-equal(T, ubyte[]) {
+          auto resptr = byte*:sqlite3_column_blob(stmt, i);
+          auto reslen = sqlite3_column_bytes(stmt, i);
+          return T:resptr[0..reslen];
+        }
+        raise new Error "Unknown column type $(string-of T)";
+      }
+    }
+    T value;
+    void finalize() {
+      if finalized {
+        raise new SQLite3Error "tried to double finalize statement";
+      }
+      finalized = true;
+      sqlite3_finalize stmt;
+    }
+    bool advance() {
+      import std.time;
+      auto start = msec();
+      onSuccess record(sql, msec() - start);
+      define-exit "retry" { }
+      auto res = sqlite3_step stmt;
+      if res == SQLITE_DONE {
+        finalize();
+        return false;
+      }
+      if res == SQLITE_BUSY raise new SQLite3Busy;
+      if res != SQLITE_ROW
+        raise new SQLite3Error "Failed to iterate query '$sql': $res: $(CToString sqlite3_errmsg db.db)";
+      static if type-is tuple T {
+        static if value.length {
+          static while int i <- 0 .. value.length {
+            value[i] = getColumn!type-of value[i] i;
+          }
+        }
+      } else {
+        value = getColumn!T 0;
+      }
+      return true;
+    }
+    void init(Database db, sqlite3_stmt* stmt) {
+      this.db = db;
+      this.stmt = stmt;
+      bindCount = 1;
+    }
+  }
+}
+
+class Database {
+  sqlite3* db;
+  IQueryIterator[auto~][] stack;
+  void openStatementList() {
+    stack ~= null;
+  }
+  void finStatementList() {
+    (IQueryIterator[auto~] qi, stack) = stack[($-1, 0..$-1)];
+    for auto i <- qi if !i.isFinalized() i.finalize();
+  }
+  void sqlite3fail(string msg) {
+    raise new Error "in sqlite3: $msg";
+  }
+  void mkfast() {
+    exec("pragma cache_size=100000"); // 100MB may be used for cache
+  }
+  void init(string dbname) {
+    if sqlite3_open(toStringz dbname, &db)
+      sqlite3fail CToString sqlite3_errmsg db;
+  }
+  template exec(U) {
+    template exec(T) {
+      auto exec(U u) {
+        define-exit "retry" { }
+        static if type-is tuple U { string sql = u[0]; }
+        else { string sql = u; }
+        sqlite3_stmt* stmt;
+        if SQLITE_OK != auto result = sqlite3_prepare_v2(
+          db,
+          sql.ptr, sql.length,
+          &stmt,
+          null
+        ) {
+          if (result == SQLITE_BUSY) raise new SQLite3Busy;
+          sqlite3fail "while executing $(sql): $(CToString sqlite3_errmsg db)";
+        }
+        
+        T bogosity;
+        
+        auto res = new QueryIterator!T (this, stmt);
+        res.sql = sql;
+        
+        if (stack.length) stack[$-1] ~= res;
+        
+        static if type-is tuple U {
+          static while int i <- 0 .. (u.length - 1) {
+            res.addBind u[1+i];
+          }
+        }
+        static if type-is tuple T {
+          static if bogosity.length == 0 {
+            res.advance();
+            return;
+          } else {
+            return res;
+          }
+        } else {
+          return res;
+        }
+      }
+    }
+  }
+  void close() {
+    sqlite3_close db;
+  }
+}
