@@ -112,6 +112,11 @@ context parser {
     if (gotFloat &float f) return f;
     fail "could not parse float";
   }
+  // WARN if the string contains escaped characters, like "\"hi\"",
+  // then the returned string will still be \"hi\"!
+  // This is actually important so that the line/column info (once implemented)
+  // will work correctly for the returned string.
+  // Use unescapeString to fix.
   string gotString(string sep = "\"") {
     using scoped text {
       if (!accept sep) return null;
@@ -120,6 +125,7 @@ context parser {
       while (i < that.length) {
         if (left.startsWith sep) break;
         if (left[0] == "\\") i++;
+        if (i !< that.length) fail "unfinished escape!";
         i++;
       } then return null; // eee
       auto res = that[0..i];
@@ -132,5 +138,16 @@ context parser {
   string getString(string sep = "\"") {
     if (auto res = gotString(sep)) return res;
     fail "string expected";
+  }
+  string unescapeString(string text) {
+    char[auto~] res;
+    int i;
+    while (i < text.length) {
+      if (text[i] == "\\") i++;
+      if (i !< text.length) fail "unfinished escape!";
+      res ~= text[i];
+      i++;
+    }
+    return res[];
   }
 }
