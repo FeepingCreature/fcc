@@ -220,10 +220,10 @@ char* toStringz(string s) {
 /*Function: CToString
 Converts a C null-terminated char* to a Neat string. */
 string CToString(char* c) {
-  if !c return string:(null x 2);
+  if !c return null;
   char* cur = c;
   while (*cur) cur++;
-  return c[0 .. (int:cur - int:c)];
+  return c[0 .. cur - c];
 }
 
 string concat(string[] strs) {
