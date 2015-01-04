@@ -26,7 +26,7 @@ class ConfigFile {
       string lkey, lvalue;
       if (!filterLine(i, line, &lkey, &lvalue))
         continue;
-      if (lkey == key) return lvalue;
+      if (lkey == key) return lvalue.dup;
     }
     return null;
   }
