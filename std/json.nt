@@ -1,0 +1,146 @@
+module std.json;
+
+template Repeat(alias A) {
+  static if (A[0] == 0) { alias Repeat = ""; }
+  else { alias Repeat = A[1] ~ Repeat!(A[0] - 1, A[1]); }
+}
+
+template json_pack_internal(alias Indent) {
+  template json_pack_internal(T) {
+    string json_pack_internal(T t) {
+      alias Spacing = "  ";
+      static if (!is-defined HIT && types-equal(T, bool)) {
+        if (t) return "true";
+        return "false";
+        alias HIT = true;
+      }
+      static if (!is-defined HIT && types-equal(T, int) || types-equal(T, short) || types-equal(T, ubyte)) {
+        return "$t";
+        alias HIT = true;
+      }
+      static if (!is-defined HIT && types-equal(T, string)) {
+        return "\""~t.replace("\\", "\\\\").replace("\"", "\\\"")~"\"";
+        alias HIT = true;
+      }
+      static if (!is-defined HIT && type-is struct T) {
+        char[auto~] res;
+        res ~= "{\n" ~ Repeat!(Indent + 1, Spacing);
+        static for int i <- 0..t.tupleof.length {
+          alias name = t.namesof[i];
+          alias value = t.tupleof[i];
+          static if (i > 0) { res ~= ",\n" ~ Repeat!(Indent + 1, Spacing); }
+          res ~= "\"$name\": " ~ scope = .json_pack_internal!(Indent + 1) value;
+        }
+        res ~= "\n" ~ Repeat!(Indent, Spacing) ~ "}";
+        return res[];
+        alias HIT = true;
+      }
+      static if (!is-defined HIT && type-is array T) {
+        char[auto~] res;
+        res ~= "[\n" ~ Repeat!(Indent + 1, Spacing);
+        for int i <- ints && auto value <- t {
+          if (i > 0) res ~= ",\n" ~ Repeat!(Indent + 1, Spacing);
+          res ~= scope = .json_pack_internal!(Indent + 1) value;
+        }
+        res ~= "\n" ~ Repeat!(Indent, Spacing) ~ "]";
+        return res[];
+        alias HIT = true;
+      }
+      static if (!is-defined HIT) {
+        pragma(fail, ("Unknown type: "~string-of T));
+      }
+    }
+  }
+}
+
+/*Template: json_pack
+Takes a value of (somewhat) arbitrary type and formats it as a JSON string
+Usage: string json = json_pack value;*/
+template json_pack(T) {
+  string json_pack(T t) {
+    return json_pack_internal!0 t;
+  }
+}
+
+import std.parser;
+template json_unpack_internal(T) {
+  T json_unpack_internal() {
+    static if (!is-defined HIT && types-equal(T, bool)) {
+      if (accept("true")) return true;
+      if (accept("false")) return false;
+      parser.fail "true or false expected";
+      alias hit = true;
+    }
+    static if (!is-defined HIT && types-equal (T, int) || types-equal (T, short) || types-equal(T, ubyte)) {
+      int i = parser.getNumber;
+      if (i > T.max || i < T.min)
+        parser.fail "number '$i' out of range for $(string-of T)";
+      return T:i;
+      alias HIT = true;
+    }
+    static if (!is-defined HIT && types-equal(T, string)) {
+      if (auto str = parser.gotString()) return parser.unescapeString str;
+      parser.fail "string expected";
+      alias HIT = true;
+    }
+    static if (!is-defined HIT && type-is struct T) {
+      using parser {
+        T res;
+        expect "{";
+        if (!accept "}") while true {
+          auto name = getString();
+          expect ":";
+          bool hit = false;
+          static for int i <- 0..res.tupleof.length {
+            alias str_name = res.namesof[i];
+            alias str_value = res.tupleof[i];
+            if (name == str_name) {
+              assert !hit;
+              alias str_type = type-of str_value;
+              str_value = .json_unpack_internal!str_type();
+              hit = true;
+            }
+          }
+          if !hit that.fail "JSON member \"$name\" had no equivalent struct member in $(string-of T)";
+          if (accept "}") break;
+          if (accept ",") continue;
+          that.fail "unknown input, expected ',' or '}'";
+        }
+        return res;
+      }
+      alias HIT = true;
+    }
+    static if (!is-defined HIT && type-is array T) {
+      using parser {
+        alias Elem = type-of-elem T;
+        Elem[auto~] res;
+        expect "[";
+        if (!accept "]") while true {
+          auto member = .json_unpack_internal!Elem();
+          res ~= member;
+          if (accept "]") break;
+          if (accept ",") continue;
+          that.fail "unknown input, expected ',' or ']'";
+        }
+        return res[];
+      }
+      alias HIT = true;
+    }
+    static if (!is-defined HIT) {
+      pragma(fail, ("Unknown type: "~string-of T));
+    }
+  }
+}
+
+/*Template: json_unpack
+Takes a JSON string and tries to match it up with a data structure.
+Usage: Type t = json_unpack!Type string;*/
+template json_unpack(T) {
+  T json_unpack(string s) {
+    using scoped parser.text = s {
+      auto res = json_unpack_internal!T();
+      parser.expectDone;
+      return res;
+    }
+  }
+}
