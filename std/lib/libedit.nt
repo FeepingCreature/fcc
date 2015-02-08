@@ -39,6 +39,7 @@ auto reader() {
       auto line = el.el_gets(&int count);
       reading = false;
       value = CToString line #[0..$-1]; // remove trailing newline. TODO chomp()
+      addHistory value;
       return true;
     }
     void addHistory(string s) {
