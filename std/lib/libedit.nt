@@ -1,0 +1,61 @@
+module std.lib.libedit;
+
+import std.string;
+import c.histedit;
+
+char* prompt;
+void setPrompt(string s) { prompt = toStringz s; }
+extern(C) char* neatprompt(EditLine* e) {
+  auto _threadlocal = getThreadlocal();
+  return prompt;
+}
+
+pragma(pkg-config, "libedit");
+
+auto reader() {
+  return new class : Iterator!string {
+    EditLine* el;
+    History* hist;
+    HistEvent ev;
+    bool reading;
+    void init() {
+      el = el_init(toStringz executable, FILE*:stdin, FILE*:stdout, FILE*:stderr);
+      el.el_set(EL_PROMPT, &neatprompt);
+      el.el_set(EL_EDITOR, toStringz "emacs");
+      hist = history_init();
+      if (!hist) fail "history could not be initialized";
+      /* Set the size of the history */
+      hist.history(&ev, H_SETSIZE, 800);
+      /* This sets up the call back functions for history functionality */
+      el.el_set(EL_HIST, &history, hist);
+    }
+    void close() {
+      el.el_end();
+      hist.history_end();
+      if (reading) writeln ""; // newline
+    }
+    bool advance() {
+      reading = true;
+      auto line = el.el_gets(&int count);
+      reading = false;
+      value = CToString line #[0..$-1]; // remove trailing newline. TODO chomp()
+      return true;
+    }
+    void addHistory(string s) {
+      hist.history(&ev, H_ENTER, toStringz s);
+    }
+  }
+}
+
+shared type-of reader() readline_object;
+// Not threadsafe because wtf are you doing calling this from multiple threads!!
+string readln(string prompt = "") {
+  onFailure {
+    readline_object.close(); // ctrl-c?
+    readline_object = null;
+  }
+  if (!readline_object) readline_object = reader();
+  setPrompt prompt;
+  if (auto line <- readline_object) return line;
+  return null;
+}
