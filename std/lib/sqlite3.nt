@@ -64,6 +64,9 @@ template QueryIterator(T) {
         static if types-equal(T, int) || types-equal(T, bool) {
           return sqlite3_bind_int(stmt, bindCount ++, t);
         }
+        static if (types-equal(T, long)) {
+          return sqlite3_bind_int64(stmt, bindCount ++, t);
+        }
         static if types-equal(T, float) || types-equal(T, double) {
           return sqlite3_bind_double(stmt, bindCount ++, double:t);
         }
@@ -80,6 +83,12 @@ template QueryIterator(T) {
       T getColumn(int i) {
         static if types-equal(T, int) {
           return sqlite3_column_int(stmt, i);
+        }
+        static if types-equal(T, bool) {
+          return sqlite3_column_int(stmt, i) != 0;
+        }
+        static if types-equal(T, long) {
+          return sqlite3_column_int64(stmt, i);
         }
         static if types-equal(T, float) {
           return float:sqlite3_column_double(stmt, i);
