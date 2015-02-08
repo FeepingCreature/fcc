@@ -320,7 +320,8 @@ void setupSysmods() {
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
-    string readln() {
+    string readln(string prompt = null) {
+      write prompt;
       char[auto~] buffer;
       while (!buffer.length || buffer[$-1] != "\n") { int i = fgetc(stdin); if (i == -1) break; buffer ~= char:byte:i; }
       if (!buffer.length) return null;
