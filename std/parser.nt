@@ -5,9 +5,31 @@ import std.string;
 context parser {
   string text;
   string delegate(string) stripOverride;
-  void fail(string s) {
-    .fail("at '$text': $s");
+  string extraIdentifierChars; // extra characters that may be part of a legal identifier
+  
+  (string filename, int row, int col, string text)[auto~] fragments;
+  void defineFile(string file, string data) {
+    for int i <- ints && auto line <- split(data, "\n") {
+      fragments ~= (file, i, 0, line);
+    }
   }
+  (string file, int row, int col) getPos(string text) {
+    for (int i=fragments.length - 1; i>=0; i--) {
+      ref fragment = fragments[i];
+      if (fragment.text.(size_t:ptr <= size_t:text.ptr <= size_t:(ptr + length))) {
+        return (fragment.filename, fragment.row, fragment.col + (text.ptr - fragment.text.ptr));
+      }
+    }
+    return (null, -1, -1);
+  }
+  
+  void fail(string s) {
+    auto pos = getPos(text);
+    if (!pos.file) .fail("at '$text': $s");
+    .fail("$(pos.file):$(pos.row + 1):$(pos.col + 1): $s");
+  }
+  
+  
   void cleanup() {
     // strip, eat comments
     do {
@@ -47,6 +69,7 @@ context parser {
       if ("a" <= text[len] <= "z" || "A" <= text[len] <= "Z") return true;
       if (text[len] == "_") return true;
       if (len && "0" <= text[len] <= "9") return true; // first letter must not be a digit
+      if (extraIdentifierChars.find(text[len..len+1])) return true;
       return false;
     }
     while checkAlphaIsh() len ++;
@@ -54,6 +77,12 @@ context parser {
     auto res = text[0 .. len];
     text = text[len .. $];
     return res;
+  }
+  bool acceptIdentifier(string identifier) using scoped text {
+    if (auto match = gotIdentifier()) {
+      if (match == identifier) { commit; return true; }
+    }
+    return false;
   }
   string getIdentifier() {
     if (auto res = gotIdentifier()) return res;
@@ -117,14 +146,14 @@ context parser {
   // This is actually important so that the line/column info (once implemented)
   // will work correctly for the returned string.
   // Use unescapeString to fix.
-  string gotString(string sep = "\"") {
+  string gotString(string sep = "\"", bool doEscapes = true) {
     using scoped text {
       if (!accept sep) return null;
       int i;
       alias left = that[i..$];
       while (i < that.length) {
         if (left.startsWith sep) break;
-        if (left[0] == "\\") i++;
+        if (doEscapes && left[0] == "\\") i++;
         if (i !< that.length) fail "unfinished escape!";
         i++;
       } then return null; // eee
