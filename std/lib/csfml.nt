@@ -3,9 +3,10 @@ module std.lib.csfml;
 alias sfModeString = "prefix %IDENTIFIER_ prefix sf first-arg x free-mode";
 defmode sfRenderWindow x sfModeString;
 defmode sfImage x sfModeString;
+defmode sfTexture x sfModeString;
 defmode sfSprite x sfModeString;
 defmode sfFont x sfModeString;
-defmode sfString x sfModeString;
+defmode sfText x sfModeString;
 defmode sfMusic x sfModeString;
 defmode sfClock x sfModeString;
 

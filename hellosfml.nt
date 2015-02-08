@@ -3,49 +3,51 @@ module hellosfml;
 import std.lib.(csfml, opengl);
 
 void main() using mode SFML {
-  auto settings = WindowSettings:(24, 8, 0), mode = VideoMode:(800, 600, 32);
-  auto app = RenderWindow Create(mode, "SFML window", size_t: (sfResize | sfClose), settings);
+  auto mode = VideoMode:(800, 600, 32);
+  auto app = RenderWindow create(mode, "SFML window", 2 | 4, null);
   if (!app) raise new Error "could not create window";
-  onExit app.Destroy;
+  onExit app.destroy;
   
-  auto image = Image CreateFromFile "indianya.png";
-  if (!image) raise new Error "could not load image";
-  onExit image.Destroy;
+  auto texture = Texture createFromFile ("indianya.png", null);
+  if (!texture) raise new Error "could not load image";
+  onExit texture.destroy;
   
-  auto sprite = Sprite Create;
-  sprite.SetImage image;
-  onExit sprite.Destroy;
+  auto sprite = Sprite create;
+  sprite.setTexture (texture, true);
+  onExit sprite.destroy;
   writeln "$(string-of type-of sprite)";
   
-  auto font = Font CreateFromFile ("Vera.ttf", 50, null);
+  auto font = Font createFromFile ("Vera.ttf");
   if (!font) raise new Error "could not open font";
-  onExit font.Destroy;
+  onExit font.destroy;
   
-  auto text = String Create;
-  onExit text.Destroy;
+  auto text = Text create;
+  onExit text.destroy;
   using text {
-    SetText "Hello SFML";
-    SetFont font;
-    SetSize 50;
+    setString "Hello SFML";
+    setFont font;
+    setCharacterSize 50;
   }
   
-  auto music = Music CreateFromFile "Tristram Theme.ogg";
+  /*
+  auto music = Music createFromFile "Tristram Theme.ogg";
   if (!music) raise new Error "could not open music";
-  onExit music.Destroy;
+  onExit music.destroy;
   
-  music.Play;
+  music.play;
+  */
   
   using app {
-    while (IsOpened()) {
-      while (GetEvent &sfEvent ev) {
-        if (ev.Type == EvtClosed) {
-          app.Close();
+    while (isOpen()) {
+      while (pollEvent &sfEvent ev) {
+        if (ev.type == EvtClosed) {
+          app.close();
         }
       }
-      Clear Black;
-      DrawSprite sprite;
-      DrawString text;
-      Display;
+      clear Black;
+      drawSprite (sprite, null);
+      drawText (text, null);
+      display;
     }
   }
 }

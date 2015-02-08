@@ -140,7 +140,7 @@ If the file exists, it will be truncated; otherwise, it will be created.
 Parameters:
   string file - the filename
   ubyte[] data - the data to write*/
-void writeAll(string file, ubyte[] data) using new writer file {
+void writeAll(string file, ubyte[] data) using scope=new writer file {
   step data;
   that.close;
 }

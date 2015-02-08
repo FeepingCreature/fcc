@@ -1,10 +1,13 @@
 module std.lib.freetype2;
 
+pragma(define, "FT_FREETYPE_H");
+pragma(include_prepend, "ft2build.h < freetype.h");
+
 pragma(pkg-config, "freetype2");
 
 pragma(lib, "z"); // mingw bug?
 
-import c.freetype;
+import c.freetype, c.ftglyph;
 import std.math, std.unicode, std.hashmap;
 
 void FTcheck(FT_Error err) {
@@ -19,7 +22,8 @@ extern(C) {
   struct FT_MemoryRec_ {
     void* user, alloc, free, realloc;
   }
-  FT_Error FT_New_Library (FT_MemoryRec_*, FT_Library*);
+  alias FT_Memory = FT_MemoryRec_*;
+  FT_Error FT_New_Library (FT_Memory, FT_Library*);
   void FT_Add_Default_Modules (FT_Library);
 }
 extern(System) {
@@ -100,7 +104,8 @@ class Font {
     if (auto p = advancecache.get(ch)) return *p;
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
-    FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    auto faceglyph = face.glyph;
+    FTcheck Get_Glyph (faceglyph, &Glyph glyph);
     onExit Done_Glyph glyph;
     
     auto res = face.glyph.advance.(vec2i(x, y));

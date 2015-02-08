@@ -50,7 +50,8 @@ template tag(alias Tagname) {
     if (!f) { f = \(string s) printf("%.*s", s); }
   `;
   struct tagstruct {
-    string attr;
+    char[auto~] attr_appender;
+    alias attr = attr_appender[];
     auto tag(void delegate() dg) {
       auto t = this;
       return AutoCall: new \{
@@ -68,27 +69,33 @@ template tag(alias Tagname) {
     }
     // in theory we could select the ones appropriate for each tag
     // TODO: develop a DSL for this
-    tagstruct style(string s) { auto t = this; t.attr ~= " style=\"$s\""; return t; }
-    tagstruct class(string s) { auto t = this; t.attr ~= " class=\"$s\""; return t; }
-    tagstruct id(string s) { auto t = this; t.attr ~= " id=\"$s\""; return t; }
-    tagstruct href(string s) { auto t = this; t.attr ~= " href=\"$s\""; return t; }
-    tagstruct src(string s) { auto t = this; t.attr ~= " src=\"$s\""; return t; }
-    tagstruct alt(string s) { auto t = this; t.attr ~= " alt=\"$s\""; return t; }
-    tagstruct width(int i) { auto t = this; t.attr ~= " width=\"$i\""; return t; }
-    tagstruct height(int i) { auto t = this; t.attr ~= " height=\"$i\""; return t; }
-    tagstruct size(int i) { auto t = this; t.attr ~= " size=\"$i\""; return t; }
-    tagstruct colspan(int i) { auto t = this; t.attr ~= " colspan=\"$i\""; return t; }
-    tagstruct frameborder(int i) { auto t = this; t.attr ~= " frameborder=\"$i\""; return t; }
+    tagstruct attribute(string name, string s) {
+      auto t = this;
+      scope s2 = s.replace("\"", "&quot;");
+      t.attr_appender ~= scope = " $name=\"$s2\"";
+      return t;
+    }
+    tagstruct style(string s) return attribute("style", s);
+    tagstruct class(string s) return attribute("class", s);
+    tagstruct id(string s) return attribute("id", s);
+    tagstruct href(string s) return attribute("href(", s);
+    tagstruct src(string s) return attribute("src", s);
+    tagstruct alt(string s) return attribute("alt", s);
+    tagstruct width(int i) return attribute("width", "$i");
+    tagstruct height(int i) return attribute("height", "$i");
+    tagstruct size(int i) return attribute("size", "$i");
+    tagstruct colspan(int i) return attribute("colspan", "$i");
+    tagstruct frameborder(int i) return attribute("frameborder", "$i");
     
-    tagstruct type(string s) { auto t = this; t.attr ~= " type=\"$s\""; return t; }
-    tagstruct name(string s) { auto t = this; t.attr ~= " name=\"$s\""; return t; }
-    tagstruct value(string s) { auto t = this; t.attr ~= " value=\"$s\""; return t; }
+    tagstruct type(string s) return attribute("type", s);
+    tagstruct name(string s) return attribute("name", s);
+    tagstruct value(string s) return attribute("value", s);
     
-    tagstruct action(string s) { auto t = this; t.attr ~= " action=\"$s\""; return t; }
-    tagstruct method(string s) { auto t = this; t.attr ~= " method=\"$s\""; return t; }
+    tagstruct action(string s) return attribute("action", s);
+    tagstruct method(string s) return attribute("method", s);
     
-    tagstruct onclick(string s) { auto t = this; t.attr ~= " onclick=\"$s\""; return t; }
-    tagstruct scrolling(string s) { auto t = this; t.attr ~= " scrolling=\"$s\""; return t; }
+    tagstruct onclick(string s) return attribute("onclick", s);
+    tagstruct scrolling(string s) return attribute("scrolling", s);
     
     auto tag(string s) return tag new \{ mixin fstuff; f s; }
     auto tag() {
@@ -132,6 +139,7 @@ mixin mkalias!(
   "html", "head", "title", "body", "p", "a",
   "div", "span", "iframe",
   "h1", "h2", "h3", "h4", "h5", "br", "b", "i", "u",
+  "emph", "small",
   "ul", "li", "img", "text",
   "table", "tr", "th", "td",
   "form", "input");
