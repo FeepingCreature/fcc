@@ -78,10 +78,12 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr"[], &value)) {
       t2.failparse("Could not parse assignment source"[]);
     }
+    /*
     auto t3 = t2;
     if (t3.mystripl().length && !t3.acceptTerminatorSoft()) {
       t2.failparse("Unknown text after assignment! "[]);
     }
+    */
     
     auto bexup = ex;
     bool thereWereAssignables;
