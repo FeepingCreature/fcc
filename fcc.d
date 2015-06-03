@@ -941,13 +941,13 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
         auto fs = bitcastptr(lf, from, to, ap);
         splitstore(lf, from, v, from, ap, false);
         // put(lf, "store ", from, " ", v, ", ", from, "* ", ap);
-        v = save(lf, "load ", to, "* ", fs);
+        v = save(lf, ll_load(to, fs));
       } else {
         auto ap = alloca(lf, "1", to);
         auto fs = bitcastptr(lf, to, from, ap);
         splitstore(lf, from, v, from, fs, false);
         // put(lf, "store ", from, " ", v, ", ", from, "* ", fs);
-        v = save(lf, "load ", to, "* ", ap);
+        v = save(lf, ll_load(to, ap));
       }
     } else if (from.endsWith("*") && to == "i32") {
       v = save(lf, "ptrtoint ", from, " ", v, " to i32");
@@ -1503,7 +1503,9 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
     if (llvmver() > 32) {
       addFlag(false, "-vectorize-slp -vectorize-slp-aggressive");
     }
-    string passflags = "-std-compile-opts ";
+    string passflags;
+    if (llvmver() < 37) passflags ~= "-std-compile-opts ";
+    else passflags ~= "-disable-simplify-libcalls ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
     if (debugmode && llvmver() > 31) addFlag(true, "-disable-fp-elim");
     optrun(cpumode()~passflags~optflags);

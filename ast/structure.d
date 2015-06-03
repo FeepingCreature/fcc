@@ -34,7 +34,7 @@ class RelMember : Expr, Named, RelTransformable {
   int index;
   string makeOffset(Structure base) {
     auto type = base.llvmType();
-    return qformat("ptrtoint(", this.type.llvmType(), "* getelementptr(", type, "* null, i32 0, i32 ", index, ") to i32)");
+    return qformat("ptrtoint(", this.type.llvmType(), "* ", getelementptr_ex(type, "null", qformat("i32 0, i32 ", index)), " to i32)");
   }
   override {
     string toString() { return Format("["[], name, ": "[], type, " @"[], index, "]"[]); }
@@ -209,7 +209,7 @@ final class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Impor
       }
     }
     auto ty = llvmType();
-    cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
+    cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* ", getelementptr_ex(ty, "null", "i32 1"), " to i32)"));
     return cached_llvm_size;
   }
   Structure dup() {
@@ -727,7 +727,7 @@ class MemberAccess_Expr : Expr, HasInfo {
         auto tmp = alloca(lf, "1", bs);
         put(lf, "; of union");
         put(lf, "store ", bs, " ", src, ", ", bs, "* ", tmp);
-        load(lf, "load ", mt, "* ", bitcastptr(lf, bs, mt, tmp));
+        load(lf, ll_load(mt, bitcastptr(lf, bs, mt, tmp)));
         return;
       }
       // put(lf, "; mae ", this);
@@ -754,8 +754,8 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
       auto ls = lf.pop();
-      auto lt = typeToLLVM(stm.type)~"*";
-      load(lf, "load ", lt, " ", ls);
+      auto lt = typeToLLVM(stm.type);
+      load(lf, ll_load(lt, ls));
     }
     void emitLocation(LLVMFile lf) {
       (fastcast!(LValue)(base)).emitLocation(lf);
@@ -767,7 +767,7 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
         push(lf, bitcastptr(lf, typeToLLVM(bvt), mt, ls));
         return;
       }
-      load(lf, "getelementptr inbounds ", typeToLLVM(bvt), "* ", ls, ", i32 0, i32 ", stm.index);
+      load(lf, getelementptr_inbounds(typeToLLVM(bvt), ls, qformat("i32 0, i32 ", stm.index)));
       auto restype = stm.type;
       auto from = typeToLLVM(restype, true)~"*", to = typeToLLVM(restype)~"*";
       // logln(lf.count, ": emitLocation of mal to ", bvt, ", from ", from, ", to ", to);

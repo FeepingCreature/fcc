@@ -1,0 +1,29 @@
+module std.channel;
+
+import std.list, std.thread;
+template Channel(T) {
+  class Channel {
+    Deque!T data;
+    Semaphore sem;
+    Mutex lock;
+    void init() {
+      sem = new Semaphore;
+      lock = new Mutex;
+    }
+    void free() {
+      sem.free;
+      lock.free;
+      data.free;
+    }
+    void put(T t) {
+      using LockedMutex:lock data.pushTail(t);
+      sem.release();
+    }
+    T take() {
+      sem.acquire();
+      T res;
+      using LockedMutex:lock res = data.popHead();
+      return res;
+    }
+  }
+}

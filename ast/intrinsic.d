@@ -230,7 +230,16 @@ void setupSysmods() {
       T[auto ~] append3e(T[auto ~]* l, T r) {
         // printf("hi, append3e here - incoming %d, add 1\n", l.length);
         // if (l.length > 10_000_000) { int i; i /= i; }
-        return append3!T(l, (&r)[0..1]);
+        // partial inline
+        if (l.capacity < l.length + 1) {
+          return append3!T(l, (&r)[0..1]);
+        } else {
+          T[auto ~] res = l.ptr[0 .. l.length + 1];
+          res.capacity = l.capacity;
+          l.capacity = 0;
+          res[l.length] = r;
+          return res;
+        }
       }
     }
     string itoa(int i) {
@@ -1333,7 +1342,7 @@ class RDTSCExpr : Expr {
     void emitLLVM(LLVMFile lf) {
       auto f = save(lf, "alloca i64, i32 1");
       put(lf, `call void asm sideeffect "rdtsc; movl %eax, ($0); movl %edx, 4($0)", "r"(i64* `, f, `)`);
-      load(lf, "load i64* ", f);
+      load(lf, ll_load("i64*", f));
     }
   }
 }
@@ -1387,17 +1396,18 @@ mixin DefaultParser!(gotFPUCW, "tree.expr.fpucw", "24051", "fpucw");
 class FS0 : MValue {
   mixin defaultIterate!();
   mixin defaultCollapse!();
-  const fs0expr = "i8* addrspace(257)* inttoptr(i32 0 to i8* addrspace(257)*)";
+  const fs0expr = "inttoptr(i32 0 to i8* addrspace(257)*)";
+  const fs0type = "i8* addrspace(257)*";
   this() { }
   override {
     string toString() { return "FS:0"; }
     FS0 dup() { return this; }
     IType valueType() { return voidp; }
     void emitLLVM(LLVMFile lf) {
-      load(lf, "load ", fs0expr);
+      load(lf, ll_load("i8*", fs0type, fs0expr));
     }
     void emitAssignment(LLVMFile lf) {
-      put(lf, "store ", typeToLLVM(valueType()), " ", lf.pop(), ", ", fs0expr);
+      put(lf, "store ", typeToLLVM(valueType()), " ", lf.pop(), ", ", fs0type, " ", fs0expr);
     }
   }
 }

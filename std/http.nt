@@ -92,7 +92,7 @@ reassign string followLink(string from, string to) {
 
 /*Function: urlEncode
 Encodes a string using percent encoding for use in HTTP. */
-string urlEncode(string data, string extra_safe = "-_.~") {
+string urlEncode(string data, string extra_safe = "+-_.~") {
   char[auto~] encoded;
   for char ch <- data {
     if (("A" <= ch <= "Z") || ("a" <= ch <= "z") || ("0" <= ch <= "9") || extra_safe.find((&ch)[0..1])) {
@@ -116,12 +116,13 @@ string pathEncode(string uri) {
 }
 
 /*Function:urlDecode
-Inverse of urlEncode.*/
+Inverse of urlEncode. But also: "+" is treated as space! */
 string urlDecode(string data) {
   char[auto~] decoded;
   auto iter = data.iterator;
   for char ch <- iter {
-    if (ch != "%") decoded ~= ch;
+    if (ch == "+") decoded ~= " ";
+    else if (ch != "%") decoded ~= ch;
     else {
       bool success = (char a <- iter) && (char b <- iter);
       if (!success) fail "two characters expected after %";

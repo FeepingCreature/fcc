@@ -291,7 +291,11 @@ void dumpGraphReverse(void delegate(void delegate(string, string, string=null)) 
   return dumpGraph(dg, =>reverse);
 }
 
+void delegate(string) writeln_graph;
+
 void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, bool reverse = false) {
+  auto writeln = writeln_graph;
+  if (!writeln) writeln = λ(string s) { return sys.writeln s; }
   writeln "/* use neato or -Kneato */";
   writeln "Digraph D {";
   writeln "Graph [overlap=portho_xy, concentrate=true, splines=true, rankdir=LR];";
@@ -340,7 +344,7 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, boo
   }
 }
 
-void dumpModuleGraph(bool includeStdMods = false) {
+void dumpModuleGraph(bool includeStdMods = false, bool showOutEdges = false) {
   bool included(ModuleInfo mod) {
     if (mod.name == "sys") return false;
     return includeStdMods || !mod.name.startsWith "std.";
@@ -363,7 +367,12 @@ void dumpModuleGraph(bool includeStdMods = false) {
   dumpGraph \(dg) {
     for auto mod <- includedMods {
       for auto mod2 <- mod.imports {
-        if (!included(mod2)) continue;
+        if (showOutEdges) {
+          if (!included(mod)) continue;
+        } else {
+          if (!included(mod2)) continue;
+        }
+        if (mod2.name == "sys") continue;
         dg(mod2.name, mod.name);
       }
     }

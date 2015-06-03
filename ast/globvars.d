@@ -49,7 +49,7 @@ class GlobVar : LValue, Named, IsMangled {
     string getIdentifier() { return cleanedName(); }
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
-      load(lf, "load ", typeToLLVM(type), "* ", lf.pop());
+      load(lf, ll_load(typeToLLVM(type), lf.pop()));
     }
     void emitLocation(LLVMFile lf) {
       checkDecl(lf);

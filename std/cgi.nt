@@ -78,7 +78,8 @@ template tag(alias Tagname) {
     tagstruct style(string s) return attribute("style", s);
     tagstruct class(string s) return attribute("class", s);
     tagstruct id(string s) return attribute("id", s);
-    tagstruct href(string s) return attribute("href(", s);
+    tagstruct href(string s) return attribute("href", s);
+    tagstruct rel(string s) return attribute("rel", s);
     tagstruct src(string s) return attribute("src", s);
     tagstruct alt(string s) return attribute("alt", s);
     tagstruct width(int i) return attribute("width", "$i");
@@ -94,6 +95,9 @@ template tag(alias Tagname) {
     tagstruct action(string s) return attribute("action", s);
     tagstruct method(string s) return attribute("method", s);
     
+    tagstruct rows(int i) return attribute("rows", "$i");
+    tagstruct cols(int i) return attribute("cols", "$i");
+    
     tagstruct onclick(string s) return attribute("onclick", s);
     tagstruct scrolling(string s) return attribute("scrolling", s);
     
@@ -106,8 +110,13 @@ template tag(alias Tagname) {
           if (t.attr) raise new Error "text cannot have attributes: $(t.attr)";
           else raise new Error "text cannot be evaluated on its own";
         } else {
-          if (t.attr) { f $ "<"~Tagname; f t.attr; f "/>"; }
-          else f $ "<"~Tagname~"/>";
+          // this is invalid html
+          // for some tags, a closing tag is literally not allowed
+          // like <br></br>
+          // but to my knowledge, no browser will raise a stink over it.
+          // at worst, they'll silently discard the closing tag. shrug.
+          if (t.attr) { f $ "<$Tagname"; f t.attr; f "></$Tagname>"; }
+          else f $ "<$Tagname></$Tagname>";
         }
       }
     }
@@ -136,10 +145,11 @@ template mkalias(alias A) {
 }
 
 mixin mkalias!(
-  "html", "head", "title", "body", "p", "a",
+  "html", "head", "title", "body", "p", "a", "hr",
   "div", "span", "iframe",
   "h1", "h2", "h3", "h4", "h5", "br", "b", "i", "u",
-  "emph", "small",
+  "emph", "small", "script", "link",
   "ul", "li", "img", "text",
   "table", "tr", "th", "td",
-  "form", "input");
+  "form", "input", "button", "textarea", "style"
+);

@@ -131,6 +131,39 @@ class Mutex {
   void unlock() { pthread_mutex_unlock &mutex; }
 }
 
+platform(default) {
+  struct pthread_cond_t {
+    char x 48 filler; // see pthread.h
+  }
+  extern(C) {
+    int pthread_cond_init(pthread_cond_t*, void*);
+    int pthread_cond_destroy(pthread_cond_t*);
+    int pthread_cond_wait(pthread_cond_t*, pthread_mutex_t*);
+    int pthread_cond_timedwait(pthread_cond_t*, pthread_mutex_t*, timespec*);
+    int pthread_cond_broadcast(pthread_cond_t*);
+    int pthread_cond_signal(pthread_cond_t*);
+  }
+}
+
+/*Class: Condition
+A condition variable. */
+class Condition {
+  pthread_cond_t hdl;
+  void init() { pthread_cond_init(&hdl, null); }
+  void free() { pthread_cond_destroy(&hdl); }
+  void broadcast() { pthread_cond_broadcast(&hdl); }
+  void signal() { pthread_cond_signal(&hdl); }
+  void wait(Mutex lock) { pthread_cond_wait(&hdl, &lock.mutex); }
+  void wait(Mutex lock, double timeout) {
+    import std.time;
+    auto target = µsec() + long:(timeout * 1_000_000.0);
+    timespec ts;
+    ts.tv_sec  = int:(target / 1_000_000);
+    ts.tv_nsec = int:(target % 1_000_000);
+    pthread_cond_timedwait(&hdl, &lock.mutex, &ts);
+  }
+}
+
 /*Class: ReadWriteLock
 Can only be written by one thread
 Can be read many times, but only while not being written*/

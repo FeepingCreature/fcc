@@ -169,6 +169,7 @@ class Database {
   template exec(U) {
     template exec(T) {
       auto exec(U u) {
+        // pragma(msg, ("exec U "~string-of U~" T "~string-of T));
         define-exit "retry" { }
         static if type-is tuple U { string sql = u[0]; }
         else { string sql = u; }

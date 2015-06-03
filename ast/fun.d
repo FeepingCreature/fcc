@@ -616,7 +616,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         // fill stackframe for params
         auto stackp = bitcastptr(lf, "i8", argframetype, "%__stackframe");
         foreach (i, arg; getParams(true)) {
-          auto argp = save(lf, "getelementptr inbounds ", argframetype, "* ", stackp, ", i32 0, i32 ", i);
+          auto argp = save(lf, getelementptr_inbounds(argframetype, stackp, qformat("i32 0, i32 ", i)));
           auto argtype = typeToLLVM(arg.type);
           auto argtype2 = typeToLLVM(arg.type, true);
           auto argpconv = bitcastptr(lf, argtype, argtype2, argp);
@@ -841,6 +841,7 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
     }
     parlist ~= qformat("i8* ", save(lf, tlsptr));
   }
+  
   string callcc, flags;
   if (isARM()) callcc = "arm_aapcs_vfpcc";
   else if (stdcall) callcc = "x86_stdcallcc";

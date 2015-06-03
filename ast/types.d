@@ -17,6 +17,7 @@ interface IType {
 }
 
 extern(C) string typeToLLVM(IType it, bool subst = false);
+extern(C) string llvmGetElementType(IType it);
 
 interface ReferenceType { } // tag for if(foo) checks
 

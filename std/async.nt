@@ -12,7 +12,7 @@ interface AsyncHandle {
   void setAsyncFun(void delegate(AsyncBlockMode) yield);
 }
 
-import std.coroutine, std.string;
+import std.string;
 
 import c.stdlib, c.errno, c.string;
 
@@ -25,6 +25,7 @@ platform(default) {
   alias FD_ISSET = __FD_ISSET;
 }
 platform(*-mingw32) {
+  import c.windows;
   alias FD_SETSIZE = 64;
   void FD_SET(int d, fd_set* set) {
     if (set.fd_count < FD_SETSIZE) set.fd_array[set.fd_count++] = d;
@@ -110,54 +111,57 @@ struct SelectSet {
   }
 }
 
-/*Class: AsyncScheduler
-  Implements asynchronous TCP socket management*/
-class AsyncScheduler {
-  alias Tuple = (AsyncHandle hdl, AsyncBlockMode mode, Coroutine coro);
-  Tuple[auto~] tasks;
-  int timeout;
-  void init(int timeout = 30_000_000) { this.timeout = timeout; }
-  void addTask(AsyncHandle hdl, void delegate(AsyncHandle) task) {
-    Tuple newtask;
-    ref array_offset = *new int;
-    newtask = (hdl, AsyncBlockMode.Unblocked, new Coroutine new λ(yield) {
-      alias entry = tasks[array_offset];
-      hdl.setAsyncFun λ(AsyncBlockMode mode) {
-        entry.mode = mode;
-        yield();
+platform(default) {
+  import std.coroutine;
+  /*Class: AsyncScheduler
+    Implements asynchronous TCP socket management*/
+  class AsyncScheduler {
+    alias Tuple = (AsyncHandle hdl, AsyncBlockMode mode, Coroutine coro);
+    Tuple[auto~] tasks;
+    int timeout;
+    void init(int timeout = 30_000_000) { this.timeout = timeout; }
+    void addTask(AsyncHandle hdl, void delegate(AsyncHandle) task) {
+      Tuple newtask;
+      ref array_offset = *new int;
+      newtask = (hdl, AsyncBlockMode.Unblocked, new Coroutine new λ(yield) {
+        alias entry = tasks[array_offset];
+        hdl.setAsyncFun λ(AsyncBlockMode mode) {
+          entry.mode = mode;
+          yield();
+        }
+        task hdl;
+        tasks[array_offset] = (AsyncHandle:null, AsyncBlockMode.Unblocked, Coroutine:null);
+        hdl.setAsyncFun null;
+      });
+      for int i <- ints && ref task <- tasks if !task.hdl {
+        array_offset = i;
+        task = newtask;
+        return;
       }
-      task hdl;
-      tasks[array_offset] = (AsyncHandle:null, AsyncBlockMode.Unblocked, Coroutine:null);
-      hdl.setAsyncFun null;
-    });
-    for int i <- ints && ref task <- tasks if !task.hdl {
-      array_offset = i;
-      task = newtask;
-      return;
+      array_offset = tasks.length;
+      tasks ~= newtask;
     }
-    array_offset = tasks.length;
-    tasks ~= newtask;
-  }
-  int tasksLeft() { return sum [for tup <- tasks: !!tup.hdl]; }
-  void runOnce() using AsyncBlockMode {
-    SelectSet set;
-    bool anyToWaitOn;
-    for ref tup <- tasks if tup.hdl {
-      if (!set.add(tup.hdl, tup.mode)) continue;
-      anyToWaitOn = true;
-    }
-    if (anyToWaitOn) set.select(timeout);
-    int i;
-    while (i < tasks.length) {
-      ref tup = tasks[i++];
-      if !tup.hdl continue;
-      if (tup.mode == Unblocked || set.isReady(tup.hdl, tup.mode)) {
-        tup.mode = Unblocked;
-        tup.coro.enter;
+    int tasksLeft() { return sum [for tup <- tasks: !!tup.hdl]; }
+    void runOnce() using AsyncBlockMode {
+      SelectSet set;
+      bool anyToWaitOn;
+      for ref tup <- tasks if tup.hdl {
+        if (!set.add(tup.hdl, tup.mode)) continue;
+        anyToWaitOn = true;
+      }
+      if (anyToWaitOn) set.select(timeout);
+      int i;
+      while (i < tasks.length) {
+        ref tup = tasks[i++];
+        if !tup.hdl continue;
+        if (tup.mode == Unblocked || set.isReady(tup.hdl, tup.mode)) {
+          tup.mode = Unblocked;
+          tup.coro.enter;
+        }
       }
     }
-  }
-  void run() {
-    while tasksLeft() runOnce;
+    void run() {
+      while tasksLeft() runOnce;
+    }
   }
 }

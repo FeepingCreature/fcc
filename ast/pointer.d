@@ -24,7 +24,6 @@ class Pointer_ : Type, Dwarf2Encodable {
       return target is p.target || target == p.target;
     }
     string llvmSize() { if (nativePtrSize == 4) return "4"; if (nativePtrSize == 8) return "8"; assert(false); }
-    // string llvmType() { return typeToLLVM(target) ~ "*"; }
     string llvmType() {
       auto tt = typeToLLVM(target);
       if (targettypecmp != tt) {
@@ -307,11 +306,11 @@ class PointerIndexAccess : LValue {
     string toString() { return qformat("(", ptr, ")[", index, "]"); }
     void emitLocation(LLVMFile lf) {
       auto lp = save(lf, ptr), li = save(lf, index);
-      load(lf, "getelementptr inbounds ", typeToLLVM(ptrtype), " ", lp, ", i32 ", li);
+      load(lf, getelementptr_inbounds(llvmGetElementType(ptrtype), lp, qformat("i32 ", li)));
     }
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
-      load(lf, "load ", typeToLLVM(ptrtype), " ", lf.pop());
+      load(lf, ll_load(typeToLLVM(valueType()), lf.pop()));
     }
   }
 }

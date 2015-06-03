@@ -30,12 +30,12 @@ class SuperContextAccess : LValue {
     IType valueType() { return valuetype; }
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
-      load(lf, "load ", typeToLLVM(valuetype), "* ", lf.pop());
+      load(lf, ll_load(typeToLLVM(valuetype), lf.pop()));
     }
     void emitLocation(LLVMFile lf) {
       auto bs = save(lf, baseptr);
       llcast(lf, typeToLLVM(baseptr.valueType()), type ~ "*", bs);
-      load(lf, "getelementptr  inbounds ", type, "* ", lf.pop(), ", i32 0, i32 ", index);
+      load(lf, getelementptr_inbounds(type, lf.pop(), qformat("i32 0, i32 ", index)));
     }
   }
 }

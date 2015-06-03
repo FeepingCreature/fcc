@@ -10,14 +10,14 @@ class Variable : LValue, Named {
     void emitLLVM(LLVMFile lf) {
       if (!stacktype) fail;
       auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
-      load(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
+      load(lf, getelementptr_inbounds(stacktype, stackp, qformat("i32 0, i32 ", baseIndex)));
       // logln(lf.count, ":", lf.fid, ": ", stacktype, " and ", type, " -- ", typeToLLVM(type), ", ", typeToLLVM(type, true));
-      load(lf, "load ", typeToLLVM(type), "* ", lf.pop());
+      load(lf, ll_load(typeToLLVM(type), lf.pop()));
     }
     void emitLocation(LLVMFile lf) {
       if (!stacktype) fail;
       auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
-      load(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
+      load(lf, getelementptr_inbounds(stacktype, stackp, qformat("i32 0, i32 ", baseIndex)));
     }
     IType valueType() {
       return type;

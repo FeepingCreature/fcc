@@ -5,13 +5,14 @@ template Repeat(alias A) {
   else { alias Repeat = A[1] ~ Repeat!(A[0] - 1, A[1]); }
 }
 
+// returns a string. you own that memory!
 template json_pack_internal(alias Indent) {
   template json_pack_internal(T) {
     string json_pack_internal(T t) {
       alias Spacing = "  ";
       static if (!is-defined HIT && types-equal(T, bool)) {
-        if (t) return "true";
-        return "false";
+        if (t) return "true".dup;
+        return "false".dup;
         alias HIT = true;
       }
       static if (!is-defined HIT && types-equal(T, int) || types-equal(T, short) || types-equal(T, ubyte)) {
@@ -19,7 +20,12 @@ template json_pack_internal(alias Indent) {
         alias HIT = true;
       }
       static if (!is-defined HIT && types-equal(T, string)) {
-        return "\""~t.replace("\\", "\\\\").replace("\"", "\\\"")~"\"";
+        auto modified = t
+          .replace("\\", "\\\\")
+          .replace("\"", "\\\"")
+          .replace("\n", "\\n")
+        ;
+        return "\"$modified\"";
         alias HIT = true;
       }
       static if (!is-defined HIT && type-is struct T) {

@@ -32,6 +32,14 @@ extern(C) string typeToLLVM(IType it, bool subst = false) {
   return it.llvmType();
 }
 
+// TODO replace everywhere
+pragma(set_attribute, llvmGetElementType, externally_visible);
+extern(C) string llvmGetElementType(IType pointer) {
+	string ptr = typeToLLVM(pointer);
+	if (auto res = ptr.endsWith("*")) return res;
+	fail("Not a pointer type: "~ptr);
+}
+
 pragma(set_attribute, guessSize, externally_visible);
 extern(C) int guessSize(IType it) {
   if (auto ie = fastcast!(IntExpr)(llvmval(it.llvmSize()))) {
@@ -53,6 +61,7 @@ string eatType(ref string s) {
   s = s.mystripl();
   bool eat(string mark) {
     s = s.mystripl();
+    mark = mark.mystripl();
     if (auto rest = s.startsWith(mark)) {
       s = rest;
       return true;
@@ -167,14 +176,23 @@ string canonifyType(string s, bool dryrun = false) {
 }
 
 string eat_canonify(ref string s) {
-  void eat(ref string s, string mark) {
-    if (auto rest = s.startsWith(mark)) s = rest;
-    else { logln("?", mark, " #### ", s); fail; }
+  void eat(ref string s2, string mark) {
+    if (auto rest = s2.startsWith(mark)) s2 = rest;
+    else { logln("?", mark, " #### ", s2, " #### ", s); fail; }
   }
   if (auto rest = s.startsWith("ptrtoint(")) {
     auto desttype = eatType(rest);
     eat(rest, "getelementptr(");
     auto srctype = eatType(rest);
+    // new syntax (WHY?!)
+    // getelementptr (type, type* value, indexes...)
+    if (llvmver() >= 37) {
+      eat(rest, ", ");
+      eat(rest, srctype);
+      eat(rest, "*");
+      eat(rest, " ");
+      srctype ~= "*";
+    }
     eat(rest, "null");
     if (auto r2 = desttype.endsWith("*")) desttype = r2;
     else fail;
@@ -185,12 +203,13 @@ string eat_canonify(ref string s) {
       if (srctype != desttype) fail;
       desttype = canonifyType(desttype);
       srctype = canonifyType(srctype);
-      return qformat("ptrtoint(", desttype, "* getelementptr(", srctype, "* null, i32 1) to i32)");
+      return qformat("ptrtoint(", desttype, "* ", getelementptr_ex(srctype, "null", "i32 1"), " to i32)");
     }
+    eat(rest, ",");
     auto mew = rest.between("", ") to i32)");
     if (mew && mew.find("(") == -1 && mew.find(")") == -1) { // easy fallback
       s = rest.between(") to i32)", "");
-      return qformat("ptrtoint(", desttype, "* getelementptr(", srctype, "* null", mew, ") to i32)");
+      return qformat("ptrtoint(", desttype, "* ", getelementptr_ex(srctype, "null", mew), " to i32)");
     }
     logln("? ", rest);
     fail;

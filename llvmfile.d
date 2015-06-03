@@ -494,7 +494,7 @@ string readllex(string expr) {
   auto c3 = c2.replace("\"", "\\\"");
   auto c4 = "sh -c \"echo '"
     ~c3
-    ~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'\"";
+    ~"' |opt -O3 -S |grep 'ret i32' |sed -e 's/.*i32//'\"";
   scope(exit) {
     delete c4;
     if (c3 !is c2) delete c3;
@@ -553,6 +553,34 @@ bool llvmTypeIs16Aligned(string s) {
   return false;
 }
 
+string getelementptr_ex(string basetype, string value, string indexes) {
+  if (llvmver() >= 37) {
+    return qformat("getelementptr(", basetype, ", ", basetype, "* ", value, ", ", indexes, ")");
+  }
+  return qformat("getelementptr(", basetype, "* ", value, ", ", indexes, ")");
+}
+
+string getelementptr_inbounds(string basetype, string value, string indexes) {
+  if (llvmver() >= 37) {
+    return qformat("getelementptr inbounds ", basetype, ", ", basetype, "* ", value, ", ", indexes);
+  }
+  return qformat("getelementptr inbounds ", basetype, "* ", value, ", ", indexes);
+}
+
+string ll_load(string basetype, string value) {
+  if (llvmver() >= 37) {
+    return qformat("load ", basetype, ", ", basetype, "* ", value);
+  }
+  return qformat("load ", basetype, "* ", value);
+}
+
+string ll_load(string basetype, string ptrtype, string value) {
+  if (llvmver() >= 37) {
+    return qformat("load ", basetype, ", ", ptrtype, " ", value);
+  }
+  return qformat("load ", ptrtype, " ", value);
+}
+
 void splitstore(LLVMFile lf, string fromtype, string from, string totype, string to, bool addrspace1, bool nontemporal = false) {
   bool fromIsStruct = !!fromtype.endsWith("}"), toIsStruct = !!totype.endsWith("}");
   if (fromIsStruct != toIsStruct) fail(qformat("incompatible types: ", fromtype, " into ", totype));
@@ -578,8 +606,13 @@ void splitstore(LLVMFile lf, string fromtype, string from, string totype, string
   structDecompose(totype, (string s) { types2 ~= s; });
   structDecompose(fromtype, (string subtype) {
     auto elem = save(lf, "extractvalue ", fromtype, " ", from, ", ", i);
-    auto gep = save(lf, "getelementptr inbounds ", totype, "* ", to, ", i32 0, i32 ", i);
-    splitstore(lf, subtype, elem, types2[i], gep, addrspace1);
+    string gep;
+    if (llvmver() < 37) {
+      gep = save(lf, "getelementptr inbounds ", totype, "* ", to, ", i32 0, i32 ", i);
+    } else {
+      gep = save(lf, "getelementptr inbounds ", totype, ", ", totype, "* ", to, ", i32 0, i32 ", i);
+    }
+    splitstore(lf, subtype, elem, types2[i], gep, addrspace1, nontemporal);
     i++;
   });
 }

@@ -27,6 +27,7 @@ template DoubleLinkedList(T) {
       if (!tail) tail = head;
     }
     void pushTail(T t) {
+      writeln "pushTail $(string-of T)";
       auto wasTail = tail;
       tail = new Data;
       tail.data = t;
@@ -105,8 +106,12 @@ template UnrolledDoubleLinkedList(T) {
         T x Length init;
         backing.pushTail(init, Length, Length);
       }
+      writeln "-1- $(backing.tail.data)";
       backing.tail.data._1 --;
+      writeln "-2- $(backing.tail.data) and $(string-of T) and $((backing.tail.data[0].ptr, backing.tail.data.(&_0[_1])))";
+      // *backing.tail.data.(&_0[_1]) = t;
       backing.tail.data.(_0[_1]) = t;
+      writeln "-3-";
       length ++;
     }
     Reference getHead() {

@@ -1,0 +1,40 @@
+module std.date;
+// VERY in progress ish
+
+import std.macros.switchover;
+
+enum Month {
+  January, February, March, April, May, June,
+  July, August, September, October, November, December
+}
+
+enum Weekday {
+  Monday, Tuesday, Wednesday, Thursday,
+  Friday, Saturday, Sunday
+}
+
+struct Date {
+  int year, day; Month month;
+  Weekday weekday;
+  bool leapyear() {
+    return  (year %   4 == 0) // year evenly divisible by four
+         && (
+             !(year % 100 == 0) // but not a century
+            ||(year % 400 == 0) // unless divisible by 400
+            );
+  }
+  void next() {
+    weekday = Weekday:((weekday + 1) % 7);
+    day ++;
+    int mlength;
+    using Month switch Month m over m == month {
+      case September
+        or April or June or November: mlength = 30;
+      case February: mlength = [28, 29][leapyear()];
+      default: mlength = 31;
+    }
+    if (day == mlength) { day = 0; month = Month:$ month + 1; }
+    if (month == Month.December + 1) { month = Month.January; year ++; }
+  }
+  string toString() { return "$(day + 1) $month $year"; }
+}

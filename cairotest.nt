@@ -20,7 +20,7 @@ void main() using mode cairo {
   
   Node[auto~] grid;
   
-  int size = 100;
+  int size = 10;
   
   import std.random;
   for int y <- 0..size for int x <- 0..size {

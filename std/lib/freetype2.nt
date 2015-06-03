@@ -78,7 +78,7 @@ struct MyGlyph {
 }
 
 class Font {
-  FT_Face face;
+  c.freetype.FT_Face face;
   int size, dpi;
   string name;
   override string toString() { return "Font($name: $size, $dpi)"; }
@@ -105,7 +105,7 @@ class Font {
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
     auto faceglyph = face.glyph;
-    FTcheck Get_Glyph (faceglyph, &Glyph glyph);
+    FTcheck Get_Glyph (c.ftglyph.FT_GlyphSlot:faceglyph, &Glyph glyph);
     onExit Done_Glyph glyph;
     
     auto res = face.glyph.advance.(vec2i(x, y));
@@ -116,7 +116,7 @@ class Font {
     if (auto p = controlboxcache.get(ch)) return *p;
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
-    FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    FTcheck Get_Glyph (c.ftglyph.FT_GlyphSlot:face.glyph, &Glyph glyph);
     onExit Done_Glyph glyph;
     
     Glyph_Get_CBox (glyph, FT_GLYPH_BBOX_PIXELS, &BBox box);
@@ -164,7 +164,7 @@ class Font {
       prevIndex = index;
       pos[id] = pen;
       FTcheck Load_Glyph(face, index, LOAD_DEFAULT);
-      FTcheck Get_Glyph(face.glyph, &glyphs[id]);
+      FTcheck Get_Glyph(c.ftglyph.FT_GlyphSlot:face.glyph, &glyphs[id]);
       pen.x += face.glyph.advance.x;
       pen.y += face.glyph.advance.y;
     }
