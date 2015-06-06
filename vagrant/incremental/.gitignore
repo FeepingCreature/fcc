@@ -1,0 +1,6 @@
+*
+!/.gitignore
+!/build.sh
+!/Vagrantfile
+!/data
+!/data/vagrant_build.sh

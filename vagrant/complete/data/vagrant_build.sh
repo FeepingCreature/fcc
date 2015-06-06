@@ -3,7 +3,7 @@
 tools="http://svn.dsource.org/projects/scrapple/trunk/tools/tools/"
  
 #install git, svn, libc
-sudo apt-get install git subversion libc6-dev libgmp-dev -y
+sudo apt-get install git subversion libc6-dev libgmp-dev upx -y
 
 #install llvm 3.2
 sudo add-apt-repository ppa:kxstudio-team/builds -y
@@ -63,6 +63,10 @@ sudo make install
  #build fcc
 cd ./../fcc
 make all
+
+#compress fcc binary
+strip fcc
+upx fcc
 
 #archive final fcc build
 mkdir ~/fcc-latest
