@@ -6,10 +6,12 @@ if [ "$vagrant_install" == "" ]; then
     exit 1
 fi
 
+rm fcc-latest.tar.bz2
+
 vagrant up
 vagrant ssh -- << EOF
-    cp /vagrant_data/vagrant_build.sh ~/
+    cp /fcc/vagrant/data/vagrant_build.sh ~/
     bash ./vagrant_build.sh
 EOF
 
-vagrant destroy -f
+#vagrant destroy -f

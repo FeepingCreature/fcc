@@ -1,6 +1,5 @@
 #!/bin/bash
  
-repo="https://github.com/FeepingCreature/fcc.git"
 tools="http://svn.dsource.org/projects/scrapple/trunk/tools/tools/"
  
 #install git, svn, libc
@@ -14,9 +13,9 @@ sudo apt-get install llvm -y
 #sudo ln -s /usr/lib/i386-linux-gnu/libgmp.so /usr/lib/libgmp.so
 #sudo ln -s /usr/include/i386-linux-gnu/sys/ /usr/include/sys
 
-#clone ffc
-git clone $repo ./fcc
-cd ./fcc
+#copy over ffc
+cp -r /fcc ~/fcc
+cd ~/fcc
 svn checkout $tools
  
 #export for gcc build
@@ -25,7 +24,7 @@ export C_INCLUDE_PATH=/usr/include/$(gcc -print-multiarch)
 export CPLUS_INCLUDE_PATH=/usr/include/$(gcc -print-multiarch)
 
 #setup gcc
-cd ./../
+cd ~
 wget "ftp://ftp.gnu.org/gnu/gcc/gcc-4.5.3/gcc-core-4.5.3.tar.bz2" 
 tar xvf "gcc-core-4.5.3.tar.bz2"
  

@@ -23,6 +23,8 @@ build:
 	@echo
 	@echo "Building .. "
 	@rm fcc.gcda || true
+	@rm -rf ./.obj${OBJSUFFIX}/ || true
+	@mkdir ./.obj${OBJSUFFIX}
 	@${GDCPREFIX}gcc ${FLAGS} -c -o .obj${OBJSUFFIX}/threadlocals.o threadlocals.c
 	${GDCPREFIX}gdc ${DFLAGS} $(LDFLAGS) $(SOURCES) -o fcc ${LINKAUX}
 	@# ${GDCPREFIX}gdc -fprofile-generate ${DFLAGS} $(LDFLAGS) $(SOURCES) -o fcc 
