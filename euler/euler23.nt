@@ -1,0 +1,21 @@
+module euler23;
+
+import std.fun;
+
+int[] divisors(int n) { return for d in (1..n) select n % d == 0 eval[]; }
+
+bool abundant(int i) { return (sum divisors i) > i; }
+
+int[] abunds() { return for i in (1..28124) select abundant i eval[]; }
+
+int euler23() {
+	auto abunds = abunds();
+	auto canBeWritten = new bool[] 28124;
+	for int a <- abunds for int b <- abunds {
+		auto sum = a + b;
+		if (sum < canBeWritten.length) canBeWritten[sum] = true;
+	}
+	return sum for x in (1..28124) select !canBeWritten[x];
+}
+
+// void main() { int sum = euler23(); writeln "s = $sum"; }

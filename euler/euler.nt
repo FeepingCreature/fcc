@@ -1,7 +1,7 @@
 module euler;
 
 import base;
-import euler8, euler11, euler14, euler15, euler17, euler18, euler19, euler20;
+import euler8, euler11, euler14, euler15, euler17, euler18, euler19, euler20, euler23;
 
 void main(string[] args) {
   if (args.length) chosenproblem = args[0].atoi();
@@ -113,6 +113,8 @@ void main(string[] args) {
   solve(19, λ -> euler19());
   
   solve(20, λ -> euler20());
+  
+  solve(23, λ -> euler23());
   
   writeln "  -------------------------";
   writeln "Total: $total problems, $solved solved, $failed failed, $skipped skipped.";
