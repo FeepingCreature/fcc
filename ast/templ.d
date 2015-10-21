@@ -289,6 +289,12 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName, IsMangled {
       scope(exit) RefToParentType.set(rtptbackup);
       RefToParentType.set(null);
       
+      // separate parse context: don't carry through property configuration
+      PropArgs defaults;
+      auto backup = *propcfg.ptr();
+      scope(exit) *propcfg.ptr() = backup;
+      *propcfg.ptr() = defaults;
+      
       auto t2 = parent.source;
       // open new memoizer level
       auto popCache = pushCache(); scope(exit) popCache();
