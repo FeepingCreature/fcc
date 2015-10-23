@@ -1057,6 +1057,29 @@ class ZeroInitializer : Expr {
   }
 }
 
+class OneInitializer : Expr {
+  IType type;
+  this(IType type) { this.type = type; }
+  mixin defaultIterate!();
+  mixin defaultCollapse!();
+  override {
+    string toString() { return "{1}"; }
+    OneInitializer dup() { return fastalloc!(OneInitializer)(type); }
+    IType valueType() { return type; }
+    void emitLLVM(LLVMFile lf) {
+      if (type == Single!(Float)) {
+        push(lf, "1.0");
+        return;
+      }
+      if (type == Single!(SysInt)) {
+        push(lf, "1");
+        return;
+      }
+      assert(false, qformat("what is 1 in ", type, "?"));
+    }
+  }
+}
+
 int lr_count;
 class LLVMRef : LValue {
   string location;

@@ -107,7 +107,7 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       assert(exprs.length > 1);
       if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
       auto new_vec = mkVec(this.base, exprs.length);
-      if (new_vec.extend) exprs ~= fastalloc!(ZeroInitializer)(this.base);
+      if (new_vec.extend) exprs ~= mknum(1);
       return reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
     // no need for caching in this case
@@ -128,7 +128,8 @@ class MultiplesExpr : Expr {
     this.base = b;
     this.vecsize = sz;
     this.real_vecsize = realsz;
-    this.careful = careful;
+    // this.careful = careful;
+    this.careful = true;
     this.type = fastalloc!(Vector)(b.valueType(), realsz);
   }
   mixin defaultIterate!(base);
@@ -288,7 +289,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
       else throw new Exception(Format("Insufficient values for ", vec, " constructor"));
     }
     
-    if (vec.extend) exs ~= fastalloc!(ZeroInitializer)(vec.base);
+    if (vec.extend) exs ~= fastalloc!(OneInitializer)(vec.base);
     return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs));
   });
   if (canfail) return null;
@@ -823,7 +824,7 @@ class VecOp : Expr {
         emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
       }
       /*for (int i = len; i < real_len; ++i) {
-        emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroInitializer)(entries[i].valueType()));
+        emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(OneInitializer)(entries[i].valueType()));
       }*/
       if (dg2) dg2(); // lf.sfree(filler2);
       if (dg1) dg1(); // lf.sfree(filler1);
@@ -881,7 +882,7 @@ static this() {
     foreach (ex2; getTupleEntries(reinterpret_cast(vt.asFilledTup, ex))[0 .. $-vt.extend]) {
       list ~= lookupOp("-"[], ex2);
     }
-    if (vt.extend) list ~= fastalloc!(ZeroInitializer)(vt.base);
+    if (vt.extend) list ~= fastalloc!(OneInitializer)(vt.base);
     return reinterpret_cast(vt, fastalloc!(StructLiteral)(vt.asFilledTup.wrapped, list));
   }
   Expr handleVecEquals(Expr e1, Expr e2) {
