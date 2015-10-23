@@ -252,28 +252,24 @@ long atol(string s) {
   return c_atoll p;
 }
 
-platform(!arm*) {
-  /*Function: atof*/
-  float atof(string s) {
-    char* p = toStringz(s);
-    onExit mem.free(p);
-    return float:c_atof(p);
-  }
+/*Function: atof*/
+float atof(string s) {
+  char* p = toStringz(s);
+  onExit mem.free(p);
+  return float:c_atof(p);
 }
 
-platform(!arm*) {
-  // hilariously non-utf aware
-  // TODO!
-  reassign string toLower(string s) {
-    char[auto~] res;
-    for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "A" + "a"); else res ~= ch;
-    return res[];
-  }
-  reassign string toUpper(string s) {
-    char[auto~] res;
-    for auto ch <- s if "a" <= ch <= "z" res ~= char:byte:(ch - "a" + "A"); else res ~= ch;
-    return res[];
-  }
+// hilariously non-utf aware
+// TODO!
+reassign string toLower(string s) {
+  char[auto~] res;
+  for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "A" + "a"); else res ~= ch;
+  return res[];
+}
+reassign string toUpper(string s) {
+  char[auto~] res;
+  for auto ch <- s if "a" <= ch <= "z" res ~= char:byte:(ch - "a" + "A"); else res ~= ch;
+  return res[];
 }
 
 template castIter(T) {

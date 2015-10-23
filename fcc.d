@@ -1465,7 +1465,7 @@ void verify(Iterable it) {
 string cpumode() {
   // string cpu = "i686";
   string cpu = "nocona";
-  if (isARM) cpu = null;
+  if (isARM()) cpu = null;
   if (cpu && llvmver() > 31) return "-mcpu="~cpu~" ";
   return "";
 }
@@ -1484,7 +1484,7 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       string optfile = ".obj/"~output~".opt."~marker~"bc";
       string tempfile2 = ".obj/_all3.bc";
       assert(tempfile != tempfile2);
-      fullcommand ~= " opt "~flags~" -lint "~tempfile~" -o "~tempfile2~"&&";
+      fullcommand ~= " opt"~baseMarch()~flags~" -lint "~tempfile~" -o "~tempfile2~"&&";
       tempfile = tempfile2;
       // if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
@@ -1517,6 +1517,15 @@ int bashsystem(string s) {
   if (!isWindoze())
     s = "/bin/bash -c \"set -o pipefail; " ~ s.replace("\"", "\\\"")~"\"";
   return system(s.toStringz());
+}
+
+string baseMarch() {
+	string march;
+	if (isARM()) march = "-march=arm -mcpu=cortex-a7 -float-abi=hard -mattr=+neon ";
+	if (llvmver() <= 31) { }
+	else if (!isARM()) { march ~= "-mattr=-avx,-avx2 -march=x86 "; }
+	if (!march.length) return "";
+	return " "~march;
 }
 
 extern(C) int mkdir(char*, int);
@@ -1594,21 +1603,17 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     } else {
       cmdline ~= Format("llvm-as ", flags);
     }*/
-    cmdline ~= Format("opt ", flags); // llvm-as is not syntactically compatible with opt!!
+    cmdline ~= Format("opt", baseMarch(), " ", flags); // llvm-as is not syntactically compatible with opt!!
     if (isWindoze || cs.optimize) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
       string bogus;
-      string march;
-      if (llvmver() <= 31) { }
-      else if (isARM) march="-march=arm -float-abi=hard -mcpu=arm1176jzf-s -mattr=+vfp2 ";
-      else march = "-mattr=-avx,-avx2 -march=x86 ";
-      if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
+      if (cs.debugModeDwarf) llcflags ~= "-disable-fp-elim ";
       // always -O1 the llc, since it's cheap
       string funsecs = "-function-sections -data-sections";
       if (llvmver() <= 34) funsecs = "-ffunction-sections -fdata-sections";
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc -O1 "~funsecs~" "~march~cpumode()~" - -filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt"~baseMarch()~" - "~llcflags~" |llc -O1 "~funsecs~baseMarch()~" "~cpumode()~" - -filetype=obj -o ", objname);
     }
     
     if (!emulateGCCOutput) {
@@ -1732,7 +1737,7 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
     auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
-    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2 "~llc_cmd~" -filetype=obj -o "~objfile;
+    fullcommand ~= "llc "~curtemp~baseMarch()~" "~llc_cmd~" -filetype=obj -o "~objfile;
     if (!emulateGCCOutput) {
       logSmart!(false)("> ", fullcommand);
     }
@@ -1894,9 +1899,6 @@ int main2(string[] args) {
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
-  // a128 does not actually exist, nor has it ever (?!)
-  // datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
-  datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a:0:64-f80:32:32-n8:16:32-S128";
   auto exec = args.take();
   justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
     // rate limit
@@ -1964,12 +1966,14 @@ int main2(string[] args) {
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {
-      if (rest == "arm") rest = "armv6j-hardfloat-linux-gnueabi"; // like razpi
+      // if (rest == "arm") rest = "armv6j-hardfloat-linux-gnueabi"; // like razpi
+      if (rest == "arm") rest = "arm-unknown-linux-gnueabihf"; // like xu4
       platform_prefix = rest~"-";
       logln("Use platform '", platform_prefix, "'");
       foreach (ref entry; include_path) {
         if (entry == "/usr/include") {
           entry = "/usr/"~rest~"/include"; // fix up
+          if (!entry.exists()) entry = "/opt/toolchains/"~rest~"/"~rest~"/sysroot/usr/include"; // fix up xu4
         }
       }
       include_path ~= "/usr/"~rest~"/usr/include";
@@ -2043,6 +2047,14 @@ int main2(string[] args) {
     logln("Unknown filetype: ", arg);
     ar2 ~= arg;
   }
+  
+  // only do this now, that -platform has actually be parsed!
+  if (isARM()) {
+    datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64";
+  } else {
+    datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a:0:128-f80:32:32-n8:16:32-S128";
+  }
+  
   args = ar2;
   if (!args.length || showHelp) {
     logln( "usage: fcc [parameters] mainfile.nt" );

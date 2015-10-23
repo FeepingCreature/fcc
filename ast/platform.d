@@ -57,8 +57,14 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   t2.noMoreHeredoc();
   auto src = t2.coarseLexScope(true, false);
   auto ns = namespace(), mod = fastcast!(Module) (current_module());
-  if (platname == "x86"[]) platname = "default";
-  bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
+  bool match;
+  if (platname == "x86") {
+    match = !platform_prefix || platform_prefix.find("mingw") != -1;
+  } else if (platname == "posix") {
+    match = !platform_prefix || platform_prefix.startsWith("arm");
+  } else {
+    match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
+  }
   if (wildfront && wildback) match |=   platform_prefix.find(platname) != -1;
   if (wildfront &&!wildback) match |= !!platform_prefix.endsWith(platname~"-"[]);
   if(!wildfront && wildback) match |= !!platform_prefix.startsWith(platname);

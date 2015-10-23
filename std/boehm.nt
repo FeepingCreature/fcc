@@ -59,7 +59,7 @@ void addTLSRanges() {
   }
 }
 
-platform(default) {
+platform(posix) {
   void register_thread(void* stackbase /* ignored for known thread base */) {
     GC_stack_base gsb;
     gsb.mem_base = stack-base;

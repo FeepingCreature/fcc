@@ -756,9 +756,20 @@ void setupSysmods() {
       }
     }
     alias _null_dead_zone = 4096;
-    platform(default) {
+    platform(posix) {
       pragma(lib, "pthread");
-      static import c.pthread, c.signal;
+      static import c.pthread;
+      shared c.pthread.pthread_key_t tls_pointer;
+      extern(C) void* getThreadlocal() {
+        return c.pthread.pthread_getspecific(tls_pointer);
+      }
+      void setThreadlocal(void* p) {
+        c.pthread.pthread_setspecific(tls_pointer, p);
+      }
+      extern(C) int pthread_key_create(c.pthread.pthread_key_t*, void function(void*));
+    }
+    platform(default) {
+      static import c.signal;
       void setup-segfault-handler() {
         c.signal._sigaction sa;
         sa.flags = c.signal.SA_SIGINFO;
@@ -771,22 +782,10 @@ void setupSysmods() {
         // if (sigaction(c.signal.SIGFPE, &sa, null) == -1)
         //   raise new Error "failed to setup SIGFPE handler";
       }
-      extern(C) void* getThreadlocal() {
-        return c.pthread.pthread_getspecific(tls_pointer);
-      }
-      void setThreadlocal(void* p) {
-        c.pthread.pthread_setspecific(tls_pointer, p);
-      }
       void* errptr;
       extern(C) {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
-        }
-        struct mcontext_t {
-          int x 19 gregs;
-          void* fpregs;
-          size_t oldmask;
-          size_t cr2;
         }
         struct siginfo_t {
           int si_signo, si_errno, si_code;
@@ -846,11 +845,9 @@ void setupSysmods() {
           int flags;
           void function() restorer;
         }
-        int pthread_key_create(c.pthread.pthread_key_t*, void function(void*));
         int sigemptyset(__sigset_t* set);
         int sigaction(int sig, _sigaction* act, _sigaction* oact);
       }
-      shared c.pthread.pthread_key_t tls_pointer;
     }
     platform(*-mingw32*) {
       pragma(include_prepend, "winbase.h < excpt.h");
@@ -988,9 +985,11 @@ void setupSysmods() {
       
       tracked_mem_init();
       add_tls_tracking();
-      platform(default) {
+      platform(posix) {
         pthread_key_create(&tls_pointer, null);
         setThreadlocal _threadlocal;
+      }
+      platform(default) {
         setup-segfault-handler();
         preallocated_sigsegv = new MemoryAccessError "Segmentation Fault";
         preallocated_nullfault = new NullPointerError;

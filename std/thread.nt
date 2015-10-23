@@ -17,7 +17,7 @@ extern(C) {
 
 void delegate(void*) onThreadCreation;
 
-platform(default) {
+platform(posix) {
   void* stack-base;
   int stack-size;
   void setupStackBase() {
@@ -60,7 +60,7 @@ extern(C) void* __start_routine(void* p) {
   auto arg = *(void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation)*:p;
   auto _threadlocal = arg[1];
   setThreadlocal _threadlocal;
-  mxcsr = arg[2];
+  platform(x86) { mxcsr = arg[2]; }
   mem = arg[4];
   onThreadCreation = arg[5];
   setupStackBase;
@@ -78,7 +78,7 @@ void startThread(void delegate() dg) {
   (void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation) arg;
   arg[0] = dg;
   arg[1] = copy_tls;
-  arg[2] = mxcsr;
+  platform(x86) { arg[2] = mxcsr; }
   arg[3] = new Semaphore;
   if (mem.special_magic) { // some special handler, probably leftover tracked_mem because we're called from a void init(). HACK fix
     using scoped mem { mem_init; arg[4] = mem; }
@@ -93,7 +93,7 @@ void startThread(void delegate() dg) {
   arg[3].claim;
 }
 
-platform(default) {
+platform(posix) {
   pragma(lib, "pthread");
   struct pthread_mutex_t { ubyte x 40  filler; }
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
@@ -131,7 +131,7 @@ class Mutex {
   void unlock() { pthread_mutex_unlock &mutex; }
 }
 
-platform(default) {
+platform(posix) {
   struct pthread_cond_t {
     char x 48 filler; // see pthread.h
   }

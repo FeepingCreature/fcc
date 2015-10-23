@@ -16,7 +16,7 @@ import std.string;
 
 import c.stdlib, c.errno, c.string;
 
-platform(default) {
+platform(posix) {
   alias __NFDBITS = 8 * size-of __fd_mask;
   __fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
   void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }

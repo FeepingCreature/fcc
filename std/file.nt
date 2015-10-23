@@ -377,7 +377,7 @@ void C_renamewrap(string oldname, newname) {
   Renames a file
 */
 void rename(string oldname, newname) {
-  platform(default) {
+  platform(posix) {
     C_renamewrap(oldname, newname);
     return;
   }
@@ -394,6 +394,7 @@ void rename(string oldname, newname) {
       C_renamewrap(oldname, newname);
     }
   }
+  assert(false);
 }
 
 extern(C) int unlink(char*);
