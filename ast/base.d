@@ -461,13 +461,25 @@ string frametype2(ScopeLike sl) {
 }
 
 string lltypesize(string type) {
-  if (type.endsWith("}") || type.startsWith("%")) return qformat("ptrtoint(", type, "* getelementptr(", type, "* null, i32 1) to i32)");
+  if (type.endsWith("}") || type.startsWith("%")) {
+    if (llvmver() < 37) {
+      return qformat("ptrtoint(", type, "* getelementptr(", type, "* null, i32 1) to i32)");
+    } else {
+      return qformat("ptrtoint(", type, "* getelementptr(", type, ", ", type, "* null, i32 1) to i32)");
+    }
+  }
   logln("llsize(", type, ")");
   fail;
 }
 
 string lloffset(string type, string type2, int offs) {
-  return readllex(qformat("ptrtoint(", type2, "* getelementptr(", type, "* null, i32 0, i32 ", offs, ") to i32)"));
+  string expr;
+  if (llvmver() >= 37) {
+	expr = qformat("ptrtoint(", type2, "* getelementptr(", type, ", ", type, "* null, i32 0, i32 ", offs, ") to i32)");
+  } else {
+	expr = qformat("ptrtoint(", type2, "* getelementptr(", type, "* null, i32 0, i32 ", offs, ") to i32)");
+  }
+  return readllex(expr);
 }
 
 template DefaultScopeLikeGuards() {
@@ -1095,7 +1107,7 @@ class LLVMRef : LValue {
     void emitLLVM(LLVMFile lf) {
       if (!location) fail;
       if (state != 2) fail;
-      load(lf, "load ", typeToLLVM(type), "* ", location);
+      load(lf, ll_load(typeToLLVM(type), location));
     }
     void emitLocation(LLVMFile lf) {
       if (!location) fail;

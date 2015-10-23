@@ -871,7 +871,12 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
       }
     }
   }
-  auto callstr = qformat("call ", callcc, " ", fptype, " ", fpv, "(", parlist.join(", "), ")", flags);
+  string callstr;
+  if (llvmver() >= 38) {
+    callstr = qformat("call ", callcc, " ", fptype[0..$-1], " ", fpv, "(", parlist.join(", "), ")", flags);
+  } else {
+    callstr = qformat("call ", callcc, " ", fptype, " ", fpv, "(", parlist.join(", "), ")", flags);
+  }
   if (Single!(Void) == ret) {
     put(lf, callstr);
     lf.push("void");

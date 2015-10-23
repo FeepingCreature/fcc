@@ -130,9 +130,9 @@ class DerefExpr_ : LValue, HasInfo {
         if (llvmver() >= 34) addrspacecast = "addrspacecast ";
         auto c = save(lf, src);
              c = save(lf, addrspacecast, ptrtype, " ", c, " to ", fixedtype);
-        load(lf, "load ", fixedtype, " ", c);
+        load(lf, ll_load(ptrtype[0..$-1], fixedtype, c));
       } else {
-        load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
+        load(lf, ll_load(typeToLLVM(valueType()), typeToLLVM(src.valueType), save(lf, src)));
       }
     }
     void emitLocation(LLVMFile lf) {

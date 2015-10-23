@@ -77,10 +77,8 @@ void fixupEBP(ref Iterable itr, Expr baseptr) {
   convertToDeref(itr);
   checkDup = false;
   if (needsDup) {
-    // logln("FIXUP: before ", itr);
     itr = itr.dup;
     convertToDeref(itr);
-    // logln("FIXUP: after ", itr);
   }
 }
 
