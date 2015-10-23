@@ -1239,7 +1239,7 @@ class FunRefExpr : Expr, Literal {
   IType typecache;
   override {
     string toString() { return qformat("&", fun); }
-    FunRefExpr dup() { return fastalloc!(FunRefExpr)(fun); }
+    FunRefExpr dup() { return fastalloc!(FunRefExpr)(fun.flatdup); }
     IType valueType() {
       if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
       return typecache;

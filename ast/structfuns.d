@@ -280,7 +280,7 @@ class StructFunRefExpr : mkDelegate {
     }
     super(fun.getPointer(), fastalloc!(RefExpr)(fastcast!(CValue)~ fun.baseptr));
   }
-  override typeof(this) dup() { return new typeof(this)(fun); }
+  override typeof(this) dup() { return new typeof(this)(fun.flatdup); }
   override string toString() {
     return Format("&"[], fun.baseptr, "."[], fun);
   }

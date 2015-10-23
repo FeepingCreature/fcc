@@ -343,7 +343,9 @@ class NestFunRefExpr : mkDelegate {
   override IType valueType() {
     return fastalloc!(Delegate)(fun.type);
   }
-  override NestFunRefExpr dup() { return fastalloc!(NestFunRefExpr)(fun, base.dup); }
+  override NestFunRefExpr dup() {
+    return fastalloc!(NestFunRefExpr)(fun.flatdup, base.dup); 
+  }
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -413,7 +415,7 @@ class FunPtrAsDgExpr(T) : T {
   override IType valueType() {
     return fastalloc!(Delegate)(fp.ret, fp.args);
   }
-  override FunPtrAsDgExpr dup() { return fastalloc!(FunPtrAsDgExpr)(ex); }
+  override FunPtrAsDgExpr dup() { return fastalloc!(FunPtrAsDgExpr)(ex.dup); }
   static if (is(T: Literal)) {
     override string getValue() {
       auto l2 = fastcast!(Literal)~ ex;
