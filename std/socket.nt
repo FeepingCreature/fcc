@@ -10,7 +10,7 @@ platform(*-mingw32) {
   pragma(lib, "ws2_32");
   void init() { WSAStartup(2<<8 | 2, &WSADATA bogus); }
 }
-platform(default) {
+platform(posix) {
   import c.sys.socket, c.netdb, c.string;
 }
 
@@ -135,7 +135,7 @@ class Socket : AsyncHandle {
     platform(*-mingw32) {
       setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, char*:&b, size-of bool);
     }
-    platform(default) {
+    platform(posix) {
       setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
     }
   }
@@ -150,7 +150,7 @@ class Socket : AsyncHandle {
   // alias isOpen = sockfd;
   /*Function: open*/
   void open(Address addr) {
-    platform(default) {
+    platform(posix) {
       auto res = c.sys.socket.connect (sockfd, addr.getAddrHandle());
       if (res == -1) raise new std.file.ErrnoError();
     }
@@ -169,7 +169,7 @@ class Socket : AsyncHandle {
         raise new SocketError "read timed out";
     }
     while (true) {
-      platform(default) {
+      platform(posix) {
         auto res = .recv(sockfd, buf.ptr, buf.length, 0);
       }
       platform(*-mingw32) {
@@ -190,7 +190,7 @@ class Socket : AsyncHandle {
   Sends some of the argument, returning the number of bytes sent. */
   int send(ubyte[] buf) {
     while (true) {
-      platform(default) {
+      platform(posix) {
         auto res = .send(sockfd, buf.ptr, buf.length, 0);
       }
       platform(*-mingw32) {
