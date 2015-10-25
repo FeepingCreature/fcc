@@ -72,7 +72,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                             if (!cm.accepts(obj))
                               raise new Error "Couldn't invoke $n: bad argument: $(obj?.toString():`"`"`null`"`"`)";
                             handler-argument-variable = obj;
-                            cm.jump();
+                            cm.__jump();
                           }`, namespace(), "hdlvar"[], lookup(hdlmarker)));
       hdlvar.name = null; // marker string not needed
     }

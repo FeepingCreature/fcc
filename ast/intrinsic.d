@@ -147,9 +147,10 @@ void setupSysmods() {
       FrameInfo* prev;
     }
     FrameInfo *frameinfo;
-    void __popFrameInfo(void* prev) {
-      // printf("clean up %.*s\n", frameinfo.fun);
-      frameinfo = prev;
+    void __popFrameInfo(void* ptr) {
+      auto fi = FrameInfo*: ptr;
+      // printf("clean up %.*s : %p vs. %p ie. %.*s vs. %.*s\n", frameinfo.fun, frameinfo.prev, fi.prev, (FrameInfo*:fi).prev.fun, frameinfo.prev.fun);
+      frameinfo = fi.prev;
     }
     pragma(internalfn, "__popFrameInfo");
     template sys_array_cast(T) {
@@ -453,10 +454,10 @@ void setupSysmods() {
         if (!param_id) return !obj;
         else return !!obj?.dynamicCastTo param_id;
       }
-      void jump() {
+      void __jump() {
         // printf("execute jump to %.*s\n", name);
         if (!guard_id.fun) {
-          while _record { /*printf("unroll all: %p\n", _record);*/ _record.dg(); _record = _record.prev; }
+          while _record { printf("unroll all: %p\n", _record); _record.dg(); _record = _record.prev; }
         } else {
           // TODO: dg comparisons
           while (_record.dg.fun != guard_id.fun) || (_record.dg.data != guard_id.data) {
@@ -480,10 +481,10 @@ void setupSysmods() {
     _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
       // printf("look up condition marker for %.*s\n", s);
       auto cur = _CondMarker*:_cm;
-      // if (h) printf("h is %p, elements (%.*s, %p, %p, (%p, %p)), cur %p\n", h, h.(id, prev, delimit, dg), cur);
+      // if (h) printf("h is %p, elements (%.*s, %p, %p, (%p, %p)), cur %p\n", h, h.(id.name, prev, delimit, dg), cur);
       _CondMarker* res;
       while (cur && (!h || void*:cur != h.delimit)) {
-        // printf("is it %.*s?\n", cur.name);
+        // printf("is it %.*s? %p %p\n", cur.name, cur, cur.prev);
         if (cur.name == s) res = cur; // return the "upmost" marker that's still ahead of delimit
         cur = cur.prev;
       }

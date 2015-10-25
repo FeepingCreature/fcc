@@ -7,9 +7,9 @@ import parseBase: startsWith, endsWith;
 
 pragma(set_attribute, typeToLLVM, externally_visible);
 extern(C) string typeToLLVM(IType it, bool subst = false) {
-  // logln("typeToLLVM ", it);
   if (!it) fail;
   auto rt = resolveTypeHard(it);
+  // logln("typeToLLVM ", fastcast!(Object)(it).classinfo.name, " ", it, " => ", fastcast!(Object)(rt).classinfo.name, " ", rt);
   if (rt == Single!(Pointer, Single!(Void))) return "i8*";
   if (subst) { // asked to substitute a simpler type
     it = rt;

@@ -219,7 +219,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     // if (this.name == "assert")
       // logln("add? for ", this, " (", releaseMode, ") - ", lookup("__frameinfo", true), " - ", lookup(tlsbase, true));
     if (lookup("__frameinfo", true) && lookup(tlsbase, true) && sysmod.lookup("__popFrameInfo")) {
-      if (!releaseMode) {
+      if (!releaseMode && name != "__popFrameInfo" && name != "__jump") {
         auto infovar = fastcast!(LValue)(lookup("__frameinfo", true));
         auto sys_frameinfo = fastcast!(Expr)(sysmod.lookup("frameinfo"));
         

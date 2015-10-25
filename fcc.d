@@ -888,8 +888,8 @@ import llvmfile, ast.vardecl;
 alias ast.types.typeToLLVM typeToLLVM;
 pragma(set_attribute, _reinterpret_cast_expr, externally_visible);
 extern(C) void _reinterpret_cast_expr(RCE rce, LLVMFile lf) {
-  auto from = typeToLLVM(rce.from.valueType()), to = typeToLLVM(rce.to);
   string v = save(lf, rce.from);
+  string from = typeToLLVM(rce.from.valueType()), to = typeToLLVM(rce.to);
   // logln("rce ", rce, " (", rce.from.valueType(), ", ", rce.to, "): ", from, " -> ", to);
   llcast(lf, from, to, v, rce.from.valueType().llvmSize());
 }
