@@ -164,6 +164,30 @@ class Condition {
   }
 }
 
+import std.list;
+
+template Channel(T) {
+  class Channel {
+    Deque!T queue;
+    Mutex m;
+    Semaphore s;
+    void init() {
+      m = new Mutex;
+      s = new Semaphore;
+    }
+    void put(T t) using LockedMutex:m {
+      queue.pushHead(t);
+      s.release();
+    }
+    T get() {
+      s.acquire();
+      using LockedMutex:m {
+        return queue.popTail();
+      }
+    }
+  }
+}
+
 /*Class: ReadWriteLock
 Can only be written by one thread
 Can be read many times, but only while not being written*/
@@ -197,9 +221,9 @@ struct UnlockedMutex {
 A classic thread pool. Keeps a queue of tasks to be executed on a first-come, first-serve basis. 
 */
 class ThreadPool {
-  Mutex m, readlock, writelock;
+  Mutex m, readlock, writelock, idlelock;
   Semaphore s, t;
-  int tasksLeft, numThreads;
+  int tasksLeft, numThreads, idleThreads;
   void delegate(int)[] readqueue, readqueue-full;
   void delegate(int)[auto~] writequeue;
   bool invoked; // if true, threadpool is intended to run threadless, executing tasks by direct invocation
@@ -207,6 +231,7 @@ class ThreadPool {
   void init(bool invoked = false) {
     New &readlock;
     New &writelock;
+    New &idlelock;
     New &m;
     New &s;
     New &t;
@@ -220,7 +245,9 @@ class ThreadPool {
     }
   }
   void threadFunOnce(int id) {
+    using LockedMutex:idlelock idleThreads ++;
     s.claim();
+    using LockedMutex:idlelock idleThreads --;
     void delegate(int) dg;
     using LockedMutex:readlock {
       if (!readqueue.length) {
