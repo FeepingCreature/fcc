@@ -172,9 +172,17 @@ context parser {
     char[auto~] res;
     int i;
     while (i < text.length) {
-      if (text[i] == "\\") i++;
-      if (i !< text.length) fail "unfinished escape!";
-      res ~= text[i];
+      if (text[i] != "\\") {
+        res ~= text[i];
+      } else {
+        i++;
+        if (i !< text.length) fail "unfinished escape!";
+        auto ctrl_char = text[i];
+        if (ctrl_char == "n") res ~= "\n";
+        else if (ctrl_char == "r") res ~= "\r";
+        else if (ctrl_char == "t") res ~= "\t";
+        else res ~= ctrl_char;
+      }
       i++;
     }
     return res[];
