@@ -9,9 +9,27 @@ platform(*-mingw32) {
   import c.winsock2, c.ws2tcpip;
   pragma(lib, "ws2_32");
   void init() { WSAStartup(2<<8 | 2, &WSADATA bogus); }
+  
+  alias c_socket_linger = c.winsock2.linger;
+  
+  extern(Windows) DWORD FormatMessageA(DWORD,PCVOID,DWORD,DWORD,char*,DWORD,void*);
+  // inline in the system header, seriously?
+  char* gai_strerrorA(int ecode) {
+    import c.winbase;
+    auto buffer = new char[] (1024 + 1);
+    DWORD dwFlags = FORMAT_MESSAGE_FROM_SYSTEM
+                  | FORMAT_MESSAGE_IGNORE_INSERTS
+                  | FORMAT_MESSAGE_MAX_WIDTH_MASK;
+    DWORD dwLanguageId = (SUBLANG_DEFAULT << 10) | LANG_NEUTRAL;
+    FormatMessageA(dwFlags, null, ecode, dwLanguageId, buffer.ptr, 1024, null);
+    return buffer.ptr;
+  }
+  alias gai_strerror = gai_strerrorA;
+  alias EWOULDBLOCK = WSAEWOULDBLOCK;
 }
 platform(posix) {
   import c.sys.socket, c.netdb, c.string;
+  alias c_socket_linger = c.sys.socket.linger;
 }
 
 /*Class: Address
@@ -25,7 +43,7 @@ class Address {
   void init() { }
   /*Function: init
   Create an Address from host name and port*/
-  void init(string dns, short port) {
+  void init(string dns, short port, bool allow-ipv6 = true) {
     addrinfo* addr;
     getaddrinfo(toStringz dns, null, null, &addr);
     if (!addr) {
@@ -40,7 +58,7 @@ class Address {
         (sockaddr_in*:saddr.ptr).sin_port = htons(port);
         return;
       }
-      if (addr.ai_family == AF_INET6) {
+      if (addr.ai_family == AF_INET6 && allow-ipv6) {
         int required_size = max(size-of sockaddr_in6, addr.ai_addrlen);
         saddr = new ubyte[] required_size;
         saddr[0..addr.ai_addrlen] = (ubyte*:addr.ai_addr)[0..addr.ai_addrlen];
@@ -99,8 +117,8 @@ class Socket : AsyncHandle {
     }
   }
   /*Function: init*/
-  void init(string domain, short port) {
-    scope addr = new Address(domain, port);
+  void init(string domain, short port, bool allow-ipv6 = true) {
+    scope addr = new Address(domain, port, allow-ipv6);
     init(family => addr.family());
     open addr;
   }
@@ -120,14 +138,19 @@ class Socket : AsyncHandle {
   override void setAsyncFun(void delegate(AsyncBlockMode mode) yield) {
     asyncfun = yield;
     
-    import c.fcntl;
-    auto flags = sockfd.fcntl (F_GETFL);
-    if (yield) {
-      flags |= O_NONBLOCK;
-    } else {
-      flags &= int: ¬O_NONBLOCK;
+    platform(posix) {
+      import c.fcntl;
+      auto flags = sockfd.fcntl (F_GETFL);
+      if (yield) {
+        flags |= O_NONBLOCK;
+      } else {
+        flags &= int: ¬O_NONBLOCK;
+      }
+      sockfd.fcntl(F_SETFL, flags);
     }
-    sockfd.fcntl(F_SETFL, flags);
+    platform(*-mingw32) {
+      assert(false, "TODO find win32 replacement for fcntl");
+    }
   }
   /*Function: reuse
   Marks the socket as reusable*/
@@ -142,10 +165,15 @@ class Socket : AsyncHandle {
   /*Function: linger
   On close(), linger up to t seconds or until all data has been transmitted.*/
   void linger(bool dolinger, int t) {
-    c.sys.socket.linger l;
-    l.l_onoff = dolinger;
-    l.l_linger = t;
-    setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &l, size-of c.sys.socket.linger);
+    c_socket_linger l;
+    l.l_onoff = short:int: dolinger;
+    l.l_linger = short: t;
+    platform(*-mingw32) {
+      setsockopt(sockfd, SOL_SOCKET, SO_LINGER, char*: &l, size-of c_socket_linger);
+    }
+    platform(!*-mingw32) {
+      setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &l, size-of c_socket_linger);
+    }
   }
   // alias isOpen = sockfd;
   /*Function: open*/
@@ -258,7 +286,7 @@ class Socket : AsyncHandle {
   }
   Address getRemoteAddress() {
     sockaddr_in address;
-    if (getsockname(sockfd, sockaddr*:&address, &int result-size = size-of sockaddr_in) == -1) {
+    if (getpeername(sockfd, sockaddr*:&address, &int result-size = size-of sockaddr_in) == -1) {
       raise new std.file.ErrnoError;
     }
     auto res = new Address;

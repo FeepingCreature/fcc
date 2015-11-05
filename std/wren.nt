@@ -369,6 +369,9 @@ template neat-to-wren(T) {
 template wren-to-neat(T) {
   T wren-to-neat(Thing thing) {
     static if (type-is class T) || (type-is interface T) {
+      if (is-nil thing) return null;
+      
+      if (auto res = T: thing) return res; // directly!
       if (auto as = Assignable: thing) thing = thing.eval(null, null); // get at the juicy value beneath
       if (auto ot = ObjectThing: thing) {
         if (auto res = T: ot.obj) return res;
@@ -378,6 +381,8 @@ template wren-to-neat(T) {
       alias match-found = true;
     }
     static if (type-is array T) {
+      if (is-nil thing) return null;
+      
       alias AT = type-of (*T*:null)[0];
       if (auto arr = Array!AT: thing)
         return arr.value;

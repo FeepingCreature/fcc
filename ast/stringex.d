@@ -1,8 +1,10 @@
 module ast.stringex;
 
 import
-  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign, ast.structure,
-  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, ast.stringparse, ast.oop, tools.base: take;
+  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays,
+  ast.assign, ast.structure,   ast.literal_string, ast.arrays, ast.vardecl,
+  ast.pointer, ast.casting, ast.stringparse, ast.oop, ast.vector,
+  tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

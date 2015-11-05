@@ -118,6 +118,8 @@ extern(C) {
 float floor(float x) { return floorf x; }
 /*Function: ceil*/
 float ceil(float x) { return ceilf x; }
+/*Function: tan*/
+float tan(float x) { return tanf x; }
 /*Function: atan*/
 float atan(float x) { return atanf x; }
 

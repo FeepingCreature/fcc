@@ -111,8 +111,26 @@ template flatten(T) {
   template Flatten(T) {
     class Flatten : Iterator!T {
       Iterator!T[] sup;
-      T[] backing;
+      T[] backing; // no need to free backing[], it's owned by sup
       void init(Iterator!T[] s) { sup = s; }
+      // take i elements
+      T[] take(int i) {
+        T[auto~] res;
+        while (i) {
+          if (!backing.length) {
+            if (!sup || !backing <- sup) { fail "ran out of data on the sup iterator while taking $i"; }
+          }
+          int to_take = min(i, backing.length);
+          T[] taken;
+          (taken, backing) = backing[(0..to_take, to_take..$)]
+          res ~= taken;
+          i -= to_take;
+        }
+        return res[];
+      }
+      // get an iterator like the original one, resuming where take and advance left off
+      /* we don't need to dup backing, because we'll only touch sup when backing is already used */
+      Iterator!T[] rest() { return wrap!T[](cat(once backing[], sup)); }
       bool advance() {
         if (!backing.length) {
           if (!sup || !backing <- sup) { sup = null; return false; }

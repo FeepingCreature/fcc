@@ -379,7 +379,7 @@ class FastVec3Norm : Expr {
         sum = save(lf, "fadd float ", sum, ", ", v1);
         sum = save(lf, "fadd float ", sum, ", ", v2);
       }
-      if (isX86()) {
+      if (isX86() && false) {
         if (once(lf, "intrinsic llvm.x86.sse.rsqrt.ss")) {
           lf.decls["llvm.x86.sse.rsqrt.ss"] = qformat("declare <4 x float> @llvm.x86.sse.rsqrt.ss (<4 x float>)");
         }

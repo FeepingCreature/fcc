@@ -142,7 +142,9 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       if (platform_prefix) {
         auto triple = platform_prefix[0..$-1];
         auto parts = triple.split("-");
-        if (parts.length == 2) triple = qformat(parts[0], "-pc-", parts[1]);
+        if (parts[1] == "mingw32") {
+          triple = parts[0]~"--windows-gnu"; // llvm what are you doing llvm
+        } else if (parts.length == 2) triple = qformat(parts[0], "-pc-", parts[1]);
         put(lf, `target triple = "`, triple, `"`);
       } else {
         put(lf, `target triple = "i386-pc-linux-gnu"`);

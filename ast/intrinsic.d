@@ -1027,9 +1027,13 @@ void setupSysmods() {
       __setupModuleInfo(_threadlocal);
       constructModules();
       
+      // it is a bad idea to change the default rounding mode unasked
+      /*
       platform(x86) {
         mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
       }
+      */
+      
       executable = argv[0][0..strlen(argv[0])];
       argv ++; argc --;
       auto args = new string[] argc;

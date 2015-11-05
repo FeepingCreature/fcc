@@ -1067,7 +1067,7 @@ class OneInitializer : Expr {
     OneInitializer dup() { return fastalloc!(OneInitializer)(type); }
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) {
-      if (type == Single!(Float)) {
+      if (type == Single!(Float) || type == Single!(Double) || type == Single!(Real)) {
         push(lf, "1.0");
         return;
       }

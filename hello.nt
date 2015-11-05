@@ -15,7 +15,7 @@ void main(string[] args) {
   printf("Hello World %i fac %i\n", 5, fac(5));
   auto v = vec4i:vec4f(5);
   writeln "5 $v";
-  return;
+  // return;
   writeln "Hello World";
   using "Hello there. " writeln();
   writeln "args = $args";

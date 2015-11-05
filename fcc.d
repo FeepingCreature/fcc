@@ -1488,8 +1488,11 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       tempfile = tempfile2;
       // if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
-    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
-      "-fp-contract=fast";
+    string fpmathopts = "-enable-fp-mad "
+      // "-enable-unsafe-fp-math "
+      "-fp-contract=fast "
+      // "-enable-no-infs-fp-math -enable-no-nans-fp-math "
+    ;
     if (!isWindoze() && false) fpmathopts ~= " -tailcallopt"; // TODO figure out why
     // also TODO figure out why it keeps crashing
     
@@ -2051,6 +2054,8 @@ int main2(string[] args) {
   // only do this now, that -platform has actually be parsed!
   if (isARM()) {
     datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64";
+  } else if (isWindoze() && llvmver() >= 38) {
+    datalayout = "e-m:x-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a:0:128-f80:32:32-n8:16:32-S128";
   } else {
     datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a:0:128-f80:32:32-n8:16:32-S128";
   }
