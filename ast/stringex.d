@@ -102,6 +102,19 @@ Expr simpleFormat(Expr ex, out bool allocates) {
   if (Single!(Double) == type) {
     return buildFunCall(sysmod.lookup("dtoa"), ex, "dtoa");
   }
+  if (auto vec = fastcast!(Vector)(type)) {
+    auto res = fastalloc!(ConcatChain)(fastalloc!(StringExpr)("<")); // put here for type
+    auto tup_ex = reinterpret_cast(vec.asFilledTup, ex);
+    auto parts = getTupleEntries(tup_ex, null, true);
+    for (int i = 0; i < vec.len; ++i) {
+      if (i) res.addArray(fastalloc!(StringExpr)(", "));
+      bool allocated;
+      auto str = simpleFormat(parts[i], allocated);
+      res.addArray(str, allocated);
+    }
+    res.addArray(fastalloc!(StringExpr)(">"));
+    return res;
+  }
   if (auto p = fastcast!(Pointer)~ type) {
     return buildFunCall(sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
   }
