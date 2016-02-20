@@ -527,6 +527,7 @@ int llvmver_cache = -1;
 int llvmver() {
   if (llvmver_cache != -1) return llvmver_cache;
   auto res = readback("opt --version").between("LLVM version ", "\n");
+  if (!res.length) throw new Exception("LLVM must be installed and its command line tools must be in the path!");
   assert(res.length >= 3 && res[1] == '.' &&
     res[0] >= '0' && res[0] <= '9' &&
     res[2] >= '0' && res[2] <= '9');
