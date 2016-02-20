@@ -12,6 +12,8 @@ static this() {
   version(Windows) include_path ~= "/mingw/include";
 }
 
+string objdir;
+
 import memconserve_stdfile;
 alias memconserve_stdfile.exists exists;
 alias memconserve_stdfile.getTimes getTimes;
@@ -68,6 +70,7 @@ bool cachefile_read;
 string[string] cachedata;
 
 void check_cache() {
+  string cachefile = objdir ~ "/cache.txt";
   if (!cachefile_read) {
     cachefile_read = true;
     if (!cachefile.exists()) return;
@@ -85,7 +88,6 @@ void getTimes_cached(string file, ref long c, ref long a, ref long m) {
   times_cache[file] = stuple(c, a, m);
 }
 
-const cachefile = ".obj/cache.txt";
 string read_cache(string key, string filekey) {
   if (filekey) {
     filekey = findfile(filekey);
@@ -144,10 +146,12 @@ void write_cache(string key, string filekey, string data) {
 }
 
 void save_cache() {
+  string cachefile = objdir ~ "/cache.txt";
+  
   string[] lines;
   foreach (key, value; cachedata) lines ~= qformat(key, "=", value);
   
-  if (!".obj".exists()) mkdir(".obj");
+  if (!objdir.exists()) mkdir(objdir);
   
   scope data = lines.join("\n");
   write(cachefile, data);

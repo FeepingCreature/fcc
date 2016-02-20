@@ -1144,6 +1144,15 @@ void setupSysmods() {
     extern(C) void prefetch(void* address, bool write = false, int locality = 0, bool data = true) {
       // no-op by default - turned into op by substitution with llvm intrinsic
     }
+    void delegate(int id, int outcome) _record_branch;
+    extern(C) void __record_branch(int id, int outcome) {
+      auto _threadlocal = getThreadlocal;
+      if (!_record_branch) return;
+      auto dg = _record_branch;
+      using scoped _record_branch = null { // prevent loop
+        dg(id, outcome);
+      }
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;

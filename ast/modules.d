@@ -189,7 +189,8 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       }
       
       if (lf.debugmode_dwarf) {
-        auto zero = addMetadata(lf, "i32 0");
+        // TODO replace with http://llvm.org/docs/SourceLevelDebugging.html
+        /*auto zero = addMetadata(lf, "i32 0");
         auto subproglist = addMetadata(lf, lf.dwarf_subprogs.join(", ")); 
         auto dsourcefile = sourcefile; // debug sourcefile
         if (!dsourcefile.length) dsourcefile = "fuckllvmanditsretardedinterpretationofquotecorrectunquotedwarf.nt"; 
@@ -200,6 +201,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
           `i32 2, metadata !"fcc", i1 false, metadata !"", i32 0`
           `, metadata `, zero, `, metadata `, zero, `, metadata `, subproglist,
           `, metadata `, zero, `, metadata `, zero, `, metadata !""`), "}");
+        */
       }
       // if (!isARM) lf.put(".section .text"[]);
       doneEmitting = true;

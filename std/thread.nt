@@ -57,12 +57,13 @@ class Semaphore {
 vec4f aligntest_a, aligntest_b;
 
 extern(C) void* __start_routine(void* p) {
-  auto arg = *(void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation)*:p;
+  auto arg = *(void delegate(), void*, int, Semaphore, type-of mem, type-of _record_branch, type-of onThreadCreation)*:p;
   auto _threadlocal = arg[1];
   setThreadlocal _threadlocal;
   platform(x86) { mxcsr = arg[2]; }
   mem = arg[4];
-  onThreadCreation = arg[5];
+  _record_branch = arg[5];
+  onThreadCreation = arg[6];
   setupStackBase;
   arg[3].release;
   dupvcache = null;
@@ -75,7 +76,7 @@ extern(C) void* __start_routine(void* p) {
 
 void startThread(void delegate() dg) {
   pthread_t buf;
-  (void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation) arg;
+  (void delegate(), void*, int, Semaphore, type-of mem, type-of _record_branch, type-of onThreadCreation) arg;
   arg[0] = dg;
   arg[1] = copy_tls;
   platform(x86) { arg[2] = mxcsr; }
@@ -85,7 +86,8 @@ void startThread(void delegate() dg) {
   } else { // PROBABLY sane
     arg[4] = mem;
   }
-  arg[5] = onThreadCreation;
+  arg[5] = _record_branch;
+  arg[6] = onThreadCreation;
   
   auto res = pthread_create(&buf, null, &__start_routine, &arg);
   pthread_detach(buf); // we don't wrap _join(). feh.

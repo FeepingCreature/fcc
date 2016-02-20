@@ -151,11 +151,12 @@ class LLVMFile {
   
   bool[string] doOnce;
   
-  this(bool optimize, bool debugmode, bool debugmode_dwarf, bool profilemode, string filename) {
+  this(bool optimize, bool debugmode, bool debugmode_dwarf, bool profilemode, bool profile_branches, string filename) {
     this.optimize = optimize;
     this.debugmode = debugmode;
     this.debugmode_dwarf = debugmode_dwarf;
     this.profilemode = profilemode;
+    this.profile_branches = profile_branches;
     this.fn = filename;
     this.fid = fn.endsWith(".nt").replace("/", "_");
     assert(!!fid);
@@ -190,10 +191,14 @@ class LLVMFile {
     sectionStore.remove(curSectionName);
     return res;
   }
+  string[string] cachedMetadataIds;
   string addMetadata(string data) {
+    if (auto ptr = data in cachedMetadataIds) return *ptr;
     auto id = metadata_count++;
-    metadata ~= qformat("!", id, " = metadata !{", data, "}\n");
-    return qformat("!", id);
+    metadata ~= qformat("!", id, " = ", data, "\n");
+    string res = qformat("!", id);
+    cachedMetadataIds[data] = res;
+    return res;
   }
   void put(SuperAppender app) {
     curSection ~= app;
@@ -359,10 +364,30 @@ void jump(LLVMFile lf, string dest) {
   put(lf, "br label %", dest);
 }
 
+int profile_id;
+
 void jumpOn(LLVMFile lf, string dest) {
   lf.targeted[dest] = true;
   auto test = lf.pop();
   auto next = lf.allocLabel("cjump_else");
+  if (lf.fid != "sys") {
+    int id = profile_id ++;
+    if (lf.profile_branches) {
+      if (once(lf, "__record_branch")) {
+        putSection(lf, "module", "declare void @__record_branch(i32, i32)");
+      }
+      string etest = save(lf, "zext i1 ", test, " to i32");
+      put(lf, "call void @__record_branch(i32 ", id, ", i32 ", etest, ")");
+    }
+    if (lf.branchValues) {
+      if (once(lf, "expect")) {
+        putSection(lf, "module", "declare i1 @llvm.expect.i1(i1, i1)");
+      }
+      if (auto ptr = id in lf.branchValues) {
+        test = save(lf, "call i1 @llvm.expect.i1(i1 ", test, ", i1 ", *ptr, ")");
+      }
+    }
+  }
   put(lf, "br i1 ", test, ", label %", dest, ", label %", next);
   lf.emitLabel(next);
 }
@@ -593,7 +618,7 @@ void splitstore(LLVMFile lf, string fromtype, string from, string totype, string
   bool isStruct = fromIsStruct;
   string nontemp;
   if (nontemporal) {
-    nontemp = qformat(", !nontemporal ", addMetadata(lf, "i32 1"));
+    nontemp = qformat(", !nontemporal ", addMetadata(lf, "metadata !{i32 1}"));
   }
   if (!isStruct) {
     if (addrspace1) {

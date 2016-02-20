@@ -230,13 +230,14 @@ string resolvePath(string path) {
 
 // in path1, access path2
 /*Function: sub
-Given two paths, returns the second path as seen from the first path. */
+Given two paths, returns the second path as seen from the first path.
+You must free the memory it returns.*/
 string sub(string path1, path2) {
   // TODO: win32 special handling?
-  if path2.startsWith "/" return path2;
+  if path2.startsWith "/" return path2.dup;
   if path1.endsWith "/" return "$path1$path2";
-  if (path1 == ".") return path2;
-  if (path2 == ".") return path1;
+  if (path1 == ".") return path2.dup;
+  if (path2 == ".") return path1.dup;
   return "$path1/$path2";
 }
 

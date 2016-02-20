@@ -631,7 +631,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!rest(t3, "tree.expr"[], &src))
         t3.failparse("Could not find source operand for assignment! "[]);
       try {
-        auto res = lookupOp(op~"="[], curOp, src);
+        auto res = fillmark(text, lookupOp(op~"="[], curOp, src));
         if (res) text = t3;
         return fastcast!(Object) (res);
       } catch (Exception ex) {
@@ -677,7 +677,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     try {
       auto recursed = recurse(nextOp, _i + 1);
       if (!recursed) return null;
-      auto op2 = lookupOp(opName, true, op, recursed);
+      auto op2 = fillmark(text, lookupOp(opName, true, op, recursed));
       if (!op2) {
         bool mayBeValid;
         // if (foo) *bar = 5;
@@ -789,6 +789,7 @@ class IntrinsicExpr : Expr {
   }
 }
 
+// This is the correct LLVM way to handle this.
 class MinFloat : Expr {
   Expr f1, f2;
   this(Expr a, Expr b) { f1 = a; f2 = b; }
@@ -800,8 +801,25 @@ class MinFloat : Expr {
     string toString() { return qformat("minf(", f1, ", ", f2, ")"); }
     void emitLLVM(LLVMFile lf) {
       auto l1 = save(lf, f1), l2 = save(lf, f2);
-      auto cmp = save(lf, "fcmp olt float ", l1, ", ", l2);
+      auto cmp = save(lf, "fcmp fast olt float ", l1, ", ", l2);
       load(lf, "select i1 ", cmp, ", float ", l1, ", float ", l2);
+    }
+  }
+}
+
+class MinDouble : Expr {
+  Expr f1, f2;
+  this(Expr a, Expr b) { f1 = a; f2 = b; }
+  mixin defaultIterate!(f1, f2);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Double); }
+    MinFloat dup() { return fastalloc!(MinDouble)(f1.dup, f2.dup); }
+    string toString() { return qformat("min(", f1, ", ", f2, ")"); }
+    void emitLLVM(LLVMFile lf) {
+      auto l1 = save(lf, f1), l2 = save(lf, f2);
+      auto cmp = save(lf, "fcmp fast olt double ", l1, ", ", l2);
+      load(lf, "select i1 ", cmp, ", double ", l1, ", double ", l2);
     }
   }
 }
@@ -817,8 +835,25 @@ class MaxFloat : Expr {
     string toString() { return qformat("maxf(", f1, ", ", f2, ")"); }
     void emitLLVM(LLVMFile lf) {
       auto l1 = save(lf, f1), l2 = save(lf, f2);
-      auto cmp = save(lf, "fcmp ogt float ", l1, ", ", l2);
+      auto cmp = save(lf, "fcmp fast ogt float ", l1, ", ", l2);
       load(lf, "select i1 ", cmp, ", float ", l1, ", float ", l2);
+    }
+  }
+}
+
+class MaxDouble : Expr {
+  Expr f1, f2;
+  this(Expr a, Expr b) { f1 = a; f2 = b; }
+  mixin defaultIterate!(f1, f2);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Double); }
+    MinFloat dup() { return fastalloc!(MaxDouble)(f1.dup, f2.dup); }
+    string toString() { return qformat("max(", f1, ", ", f2, ")"); }
+    void emitLLVM(LLVMFile lf) {
+      auto l1 = save(lf, f1), l2 = save(lf, f2);
+      auto cmp = save(lf, "fcmp fast ogt double ", l1, ", ", l2);
+      load(lf, "select i1 ", cmp, ", double", l1, ", double ", l2);
     }
   }
 }

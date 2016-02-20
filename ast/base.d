@@ -740,6 +740,17 @@ class LineNumberedStatementClass : LineNumberedStatement {
   }
 }
 
+T fillmark(T : Iterable)(string text, T arg) {
+  void fun(ref Iterable it) {
+    if (auto lns = fastcast!(LineNumberedStatement)(it))
+      lns.configPosition(text);
+    it.iterate(&fun);
+  }
+  Iterable it = arg;
+  if (it) fun(it);
+  return arg;
+}
+
 string mainfile;
 
 import std.moduleinit;

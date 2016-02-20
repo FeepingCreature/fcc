@@ -451,15 +451,6 @@ void ast_math_constr() {
         fastalloc!(FloatExpr)(0.25)));
     });
   }*/
-  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
-    return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
-  }, delegate Expr(Expr[] args) {
-    auto Int = Single!(SysInt), Float = Single!(Float);
-    return reinterpret_cast(Float, lookupOp("|",
-      lookupOp("&", reinterpret_cast(Int, args[0]), mkInt(0x7fff_ffff)),
-      lookupOp("&", reinterpret_cast(Int, args[1]), mkInt(0x8000_0000))
-    ));
-  });
   
   funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
     return (fun.name == "fminf" || fun.name == "[wrap]fminf") && fun.extern_c;
@@ -467,6 +458,13 @@ void ast_math_constr() {
   funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
     return (fun.name == "fmaxf" || fun.name == "[wrap]fmaxf") && fun.extern_c;
   }, delegate Expr(Expr[] args) { return new MaxFloat(args[0], args[1]); });
+  
+  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "fmin" || fun.name == "[wrap]fmin") && fun.extern_c;
+  }, delegate Expr(Expr[] args) { return new MinDouble(args[0], args[1]); });
+  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "fmax" || fun.name == "[wrap]fmax") && fun.extern_c;
+  }, delegate Expr(Expr[] args) { return new MaxDouble(args[0], args[1]); });
   
   void addCIntrin(int arity, string funname, IType ret, string intrin, bool argsSameTypeAsReturn = true) {
     funcall_folds ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
@@ -479,19 +477,30 @@ void ast_math_constr() {
       return fastalloc!(IntrinsicExpr)(intrin, args, ret);
     });
   }
-  addCIntrin(1, "sqrtf" , Single!(Float), "llvm.sqrt.f32");
-  // TODO figure out why this does not work at all
-  // addCIntrin(1, "sqrt"  , Single!(Double), "llvm.sqrt.f64");
+  addCIntrin(1, "sqrtf" , Single!(Float),  "llvm.sqrt.f32");
+  addCIntrin(1, "sqrt"  , Single!(Double), "llvm.sqrt.f64");
   // do in software, intrinsic is slow
-  // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
-  // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
+  // addCIntrin(1, "sinf"  , Single!(Float),  "llvm.sin.f32");
+  // addCIntrin(1, "sin"   , Single!(Double), "llvm.sin.f64");
+  // addCIntrin(1, "cosf"  , Single!(Float),  "llvm.cos.f32");
+  // addCIntrin(1, "cos"   , Single!(Double), "llvm.cos.f64");
   // not supported on it
   if (llvmver() > 31) {
     if (!isWindoze()) {
       addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
     }
     addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
+    addCIntrin(1, "fabs" , Single!(Double), "llvm.fabs.f64");
   }
+  if (llvmver() >= 37) {
+    // addCIntrin(2, "fminf" ,    Single!(Float),  "llvm.minnum.f32");
+    // addCIntrin(2, "fmin" ,     Single!(Double), "llvm.minnum.f64");
+    // addCIntrin(2, "fmaxf" ,    Single!(Float),  "llvm.maxnum.f32");
+    // addCIntrin(2, "fmax" ,     Single!(Double), "llvm.maxnum.f64");
+    addCIntrin(2, "copysignf", Single!(Float),  "llvm.copysign.f32");
+    addCIntrin(2, "copysign",  Single!(Double), "llvm.copysign.f64");
+  }
+  
   addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
   addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");
   addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
@@ -1211,7 +1220,21 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
     string name; int line, column;
     lns.getInfo(name, line, column);
     if (line || column) {
-      setFunctionAnnotation(lf, qformat(`, !dbg `, addMetadata(lf, `i32 `, line, `, i32 `, column, `, metadata `, f, `, null`)));
+      // auto sc = addMetadata(lf, `!DIFile(filename: "`, lf.fn, `", directory: ".")`);
+      if (once(lf, "debug info version")) {
+        auto empty = addMetadata(lf, `!{}`);
+        auto file = addMetadata(lf, `!DIFile(filename: "`, lf.fn.filenamepart(), `", directory: "`, lf.fn.dirpart(), `")`);
+        auto cu = addMetadata(lf, `distinct !DICompileUnit(language: DW_LANG_C99, file: `, file, `, `,
+          `producer: "neat1", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: `, empty, `, `,
+          `retainedTypes: `, empty, `, subprograms: `, empty, `, globals: `, empty, `, imports: `, empty, `)`
+        );
+        auto info1 = addMetadata(lf, `!{i32 2, !"Dwarf Version", i32 2}`);
+        auto info2 = addMetadata(lf, `!{i32 2, !"Debug Info Version", i32 3}`);
+        auto info3 = addMetadata(lf, `!{i32 1, !"PIC Level", i32 2}`);
+        putSection(lf, "module", `!llvm.dbg.cu = !{`, cu, `}`);
+        putSection(lf, "module", `!llvm.module.flags = !{`, info1, `, `, info2, `, `, info3, `}`);
+      }
+      setFunctionAnnotation(lf, qformat(`, !dbg `, addMetadata(lf, `!DILocation(line: `, line, `, column: `, column, `, scope: `, f, `)`)));
     }
   }
   
@@ -1486,8 +1509,8 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
   if (optimize) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
-      string optfile = ".obj/"~output~".opt."~marker~"bc";
-      string tempfile2 = ".obj/_all3.bc";
+      string optfile = objdir~"/"~output~".opt."~marker~"bc";
+      string tempfile2 = objdir~"/_all3.bc";
       assert(tempfile != tempfile2);
       fullcommand ~= " opt"~baseMarch()~flags~" -lint "~tempfile~" -o "~tempfile2~"&&";
       tempfile = tempfile2;
@@ -1496,7 +1519,8 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
     string fpmathopts = "-enable-fp-mad "
       // "-enable-unsafe-fp-math "
       "-fp-contract=fast "
-      // "-enable-no-infs-fp-math -enable-no-nans-fp-math "
+      "-enable-no-nans-fp-math "
+      // "-enable-no-infs-fp-math "
     ;
     if (!isWindoze() && false) fpmathopts ~= " -tailcallopt"; // TODO figure out why
     // also TODO figure out why it keeps crashing
@@ -1515,7 +1539,7 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
     if (llvmver() < 37) passflags ~= "-std-compile-opts ";
     else passflags ~= "-disable-simplify-libcalls ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
-    if (debugmode && llvmver() > 31) addFlag(true, "-disable-fp-elim");
+    // if (debugmode && llvmver() > 31) addFlag(true, "-disable-fp-elim");
     optrun(cpumode()~passflags~optflags);
   }
   return cpumode()~llc_optflags;
@@ -1528,12 +1552,15 @@ int bashsystem(string s) {
 }
 
 string baseMarch() {
-	string march;
-	if (isARM()) march = "-march=arm -mcpu=cortex-a7 -float-abi=hard -mattr=+neon ";
-	if (llvmver() <= 31) { }
-	else if (!isARM()) { march ~= "-mattr=-avx,-avx2 -march=x86 "; }
-	if (!march.length) return "";
-	return " "~march;
+  string march;
+  if (isARM()) march = "-march=arm -mcpu=cortex-a7 -float-abi=hard -mattr=+neon ";
+  if (llvmver() <= 31) { }
+  else if (!isARM()) {
+    // march ~= "-mattr=-avx,-avx2 -march=x86 ";
+    march ~= "-march=x86 ";
+  }
+  if (!march.length) return "";
+  return " "~march;
 }
 
 extern(C) int mkdir(char*, int);
@@ -1541,15 +1568,17 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
-  auto lf = fastalloc!(LLVMFile)(cs.optimize, cs.debugMode, cs.debugModeDwarf, cs.profileMode, file);
+  auto lf = fastalloc!(LLVMFile)(cs.optimize, cs.debugMode, cs.debugModeDwarf, cs.profileMode, cs.profileBranches, file);
+  lf.branchValues = cs.branchValues;
+  lf.addrspace0 = cs.addrspace0;
   lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
-    srcname = ".obj/" ~ end ~ ".ll";
+    srcname = objdir ~ "/" ~ end ~ ".ll";
     if (isWindoze || cs.optimize)
-      objname = ".obj/" ~ end ~ ".bc";
+      objname = objdir ~ "/" ~ end ~ ".bc";
     else
-      objname = ".obj/" ~ end ~ ".o";
+      objname = objdir ~ "/" ~ end ~ ".o";
     auto path = srcname[0 .. srcname.rfind("/")];
     string mew = ".";
     foreach (component; path.split("/")) {
@@ -1617,7 +1646,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     } else {
       string bogus;
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
-      if (cs.debugModeDwarf) llcflags ~= "-disable-fp-elim ";
+      // if (cs.debugModeDwarf) llcflags ~= "-disable-fp-elim ";
       // always -O1 the llc, since it's cheap
       string funsecs = "-function-sections -data-sections";
       if (llvmver() <= 34) funsecs = "-ffunction-sections -fdata-sections";
@@ -1726,23 +1755,23 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  // string linkedfile = ".obj/"~output~".all.bc";
+  // string linkedfile = objdir~"/"~output~".all.bc";
   string linkedfile;
-  if (isWindoze || optimize) linkedfile = ".obj/"~output~".all.bc";
-  else linkedfile = ".obj/"~output~".all.o";
+  if (isWindoze || optimize) linkedfile = objdir~"/"~output~".all.bc";
+  else linkedfile = objdir~"/"~output~".all.o";
   
   string objfile, objlist;
   foreach (obj; objects) objlist ~= obj ~ " ";
   if (!isWindoze && !optimize) {
     objfile = objlist;
   } else {
-    string fullcommand = "llvm-link "~objlist~" -o .obj/_all.bc && ";
+    string fullcommand = "llvm-link "~objlist~" -o "~objdir~"/_all.bc && ";
     
-    string curtemp = ".obj/_all2.bc";
-    fullcommand ~= "llvm-dis .obj/_all.bc -o - |sed -e \"s/^define weak_odr /define /g\" -e \"s/= weak_odr /= /g\" |llvm-as - -o "~curtemp~"&&";
+    string curtemp = objdir~"/_all2.bc";
+    fullcommand ~= "llvm-dis "~objdir~"/_all.bc -o - |sed -e \"s/^define weak_odr /define /g\" -e \"s/= weak_odr /= /g\" |llvm-as - -o "~curtemp~"&&";
     // if (saveTemps) fullcommand ~= " |tee "~linkedfile;
     
-    objfile = ".obj/"~output~".o";
+    objfile = objdir~"/"~output~".o";
     // -mattr=-avx,-sse41 
     auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
     fullcommand ~= "llc "~curtemp~baseMarch()~" "~llc_cmd~" -filetype=obj -o "~objfile;
@@ -1793,11 +1822,11 @@ int incbuild(string start,
   }
   void translate(string file, ref string obj, ref string asmf) {
     if (auto pre = file.endsWith(EXT)) {
-      asmf = ".obj/" ~ pre ~ ".ll";
+      asmf = objdir ~ "/" ~ pre ~ ".ll";
       if (isWindoze() || cs.optimize)
-        obj  = ".obj/" ~ pre ~ ".bc";
+        obj  = objdir ~ "/" ~ pre ~ ".bc";
       else
-        obj = ".obj/" ~ pre ~ ".o";
+        obj = objdir ~ "/" ~ pre ~ ".o";
     } else assert(false);
   }
   bool[string] checking;
@@ -1939,6 +1968,9 @@ int main2(string[] args) {
     // TODO: fix TLS under Windows (wtf is wrong with it!)
     cs.singlethread = true;
   }
+  
+  objdir = ".obj";
+  
   bool incremental, showHelp;
   ar = processCArgs(ar);
   string[] ar2;
@@ -1962,6 +1994,10 @@ int main2(string[] args) {
     }
     if (arg == "-o") {
       output = ar.take();
+      continue;
+    }
+    if (arg == "-objdir") {
+      objdir = ar.take();
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
@@ -2022,6 +2058,33 @@ int main2(string[] args) {
     if (arg == "-pg") {
       cs.profileMode = true;
       linkerArgs ~= "-pg";
+      continue;
+    }
+    if (arg == "-pb") {
+      cs.profileBranches = true;
+      continue;
+    }
+    if (arg == "-pgb") {
+      auto file = ar.take();
+      logln("Loading profile data.");
+      auto lines = (cast(string) read(file)).split("\n");
+      int[int] v0, v1;
+      foreach (line; lines) {
+        line = line.strip();
+        if (!line.length) continue;
+        auto parts = line.split(" ");
+        auto id = std.string.atoi(parts[0]), value = std.string.atoi(parts[1]);
+        if (!(id in v0)) v0[id] = 0;
+        if (!(id in v1)) v1[id] = 0;
+        if (!value) v0[id] ++;
+        else v1[id] ++;
+      }
+      foreach (id, v0count; v0) {
+        auto v1count = v1[id];
+        if (v1count > v0count) cs.branchValues[id] = 1;
+        else cs.branchValues[id] = 0;
+      }
+      logln(cs.branchValues.length, " branches loaded.");
       continue;
     }
     if (arg == "-singlethread") {
