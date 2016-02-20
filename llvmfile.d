@@ -132,7 +132,12 @@ struct TextAppender {
 }
 
 class LLVMFile {
-  bool optimize, debugmode, debugmode_dwarf, profilemode;
+  bool optimize;
+  bool debugmode, debugmode_dwarf;
+  bool profilemode, profile_branches;
+  bool addrspace0;
+  int[int] branchValues;
+  
   string currentFunctionDwarfMetadata;
   string[] dwarf_subprogs; // add one for every function we emit
   string fn, fid;

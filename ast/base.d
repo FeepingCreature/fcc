@@ -717,9 +717,9 @@ template logSmart(bool Mode, bool Stderr = false) {
 extern(C) void _line_numbered_statement_emitLLVM(LineNumberedStatement, LLVMFile);
 
 interface LineNumberedStatement : Statement {
-	LineNumberedStatement dup();
-	void configPosition(string text);
-	void getInfo(ref string name, ref int line, ref int column);
+  LineNumberedStatement dup();
+  void configPosition(string text);
+  void getInfo(ref string name, ref int line, ref int column);
 }
 
 class LineNumberedStatementClass : LineNumberedStatement {

@@ -1430,7 +1430,12 @@ void lazySysmod() {
 bool allowProgbar = true;
 
 struct CompileSettings {
-  bool saveTemps, optimize, preopt, debugMode, debugModeDwarf, profileMode, singlethread;
+  bool
+    saveTemps, optimize, preopt,
+    debugMode, debugModeDwarf = true, // basically free
+    profileMode, profileBranches,
+    singlethread, addrspace0;
+  int[int] branchValues;
 }
 
 // structural verifier
@@ -2021,6 +2026,10 @@ int main2(string[] args) {
     }
     if (arg == "-singlethread") {
       cs.singlethread = true;
+      continue;
+    }
+    if (arg == "-addrspace0") {
+      cs.addrspace0 = true;
       continue;
     }
     if (arg == "-release") {

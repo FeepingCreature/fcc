@@ -44,7 +44,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       if (value.valueType().llvmSize() != "0") {
         // use addrspace(1) to preserve null accesses so they can crash properly
         auto basetype = typeToLLVM(target.valueType());
-        if (true) {
+        if (!lf.addrspace0) {
           auto usf = is_unsafe_fast(); // if this is true, don't use addrspace(1)
           splitstore(lf, typeToLLVM(value.valueType()), src, basetype, dest, usf?false:true, nontemporal);
           // string addrspacecast = "bitcast ";
