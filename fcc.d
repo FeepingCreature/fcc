@@ -1968,6 +1968,9 @@ int main2(string[] args) {
     // TODO: fix TLS under Windows (wtf is wrong with it!)
     cs.singlethread = true;
   }
+  if (llvmver() <= 36) {
+    cs.debugModeDwarf = false; // syntax unsupported
+  }
   
   objdir = ".obj";
   
@@ -2052,6 +2055,10 @@ int main2(string[] args) {
       continue;
     }
     if (arg == "-gc") {
+      if (llvmver() <= 36) {
+        logln("DWARF debug info is not supported on your version of LLVM - needs 3.7 or higher!");
+        return 0;
+      }
       cs.debugModeDwarf = true;
       continue;
     }
