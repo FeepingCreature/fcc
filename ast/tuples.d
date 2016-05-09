@@ -193,10 +193,12 @@ final class RefTuple : MValue, IRefTuple {
     auto vartype = typeToLLVM(baseTupleType);
     foreach (i, target; mvs) {
       mixin(mustOffset("0"));
-      load(lf, "extractvalue ", vartype, " ", var, ", ", i);
       auto tt = target.valueType(), tsa = typeToLLVM(tt, true), tsb = typeToLLVM(tt);
+      auto subvar = extractvalue(lf, tsa, vartype, var, i);
       if (tsa != tsb) {
-        llcast(lf, tsa, tsb, lf.pop(), target.valueType().llvmSize());
+        llcast(lf, tsa, tsb, subvar, target.valueType().llvmSize());
+      } else {
+        push(lf, subvar);
       }
       target.emitAssignment(lf);
     }

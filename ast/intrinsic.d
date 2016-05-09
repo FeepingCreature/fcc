@@ -1355,7 +1355,7 @@ class RDTSCExpr : Expr {
     void emitLLVM(LLVMFile lf) {
       auto f = save(lf, "alloca i64, i32 1");
       put(lf, `call void asm sideeffect "rdtsc; movl %eax, ($0); movl %edx, 4($0)", "r"(i64* `, f, `)`);
-      load(lf, ll_load("i64*", f));
+      ll_load(lf, "i64*", f);
     }
   }
 }
@@ -1417,7 +1417,7 @@ class FS0 : MValue {
     FS0 dup() { return this; }
     IType valueType() { return voidp; }
     void emitLLVM(LLVMFile lf) {
-      load(lf, ll_load("i8*", fs0type, fs0expr));
+      ll_load(lf, "i8*", fs0type, fs0expr);
     }
     void emitAssignment(LLVMFile lf) {
       put(lf, "store ", typeToLLVM(valueType()), " ", lf.pop(), ", ", fs0type, " ", fs0expr);

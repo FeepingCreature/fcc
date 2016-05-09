@@ -30,7 +30,7 @@ class SuperContextAccess : LValue {
     IType valueType() { return valuetype; }
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
-      load(lf, ll_load(typeToLLVM(valuetype), lf.pop()));
+      ll_load(lf, typeToLLVM(valuetype), lf.pop());
     }
     void emitLocation(LLVMFile lf) {
       auto bs = save(lf, baseptr);

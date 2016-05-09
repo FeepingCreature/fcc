@@ -151,6 +151,14 @@ class LLVMFile {
   
   bool[string] doOnce;
   
+  // for a struct value created by inserting a bunch of values, cache the source values
+  // use this so you can (if in the same bb) recover the original values and use them directly
+  // llvm is NOT good about doing this automatically, sadly.
+  string[][string] tuplecache;
+  // track the source (pointer) variables of loads, so we can turn extractvalues
+  // on them into getelementptrs, which are better in vague unspecified ways
+  Stuple!(string, string, string)[string] loadcache; // value type, ptrtype, varname
+  
   this(bool optimize, bool debugmode, bool debugmode_dwarf, bool profilemode, bool profile_branches, string filename) {
     this.optimize = optimize;
     this.debugmode = debugmode;
@@ -243,13 +251,16 @@ class LLVMFile {
   bool[string] targeted;
   void emitLabel(string l, bool forwardsOnly = false) {
     if (forwardsOnly && !(l in targeted)) return; // not used
-    varcache = null; // basic block end, discard cache
+    
+    // basic block end, discard caches
+    bbclear();
+    
     .put(this, "br label %", l);
     put(l); put(":\n");
   }
   int getId() { return count++; }
   string getVar() { return qformat("%var", getId()); }
-  void bbclear() { varcache = null; }
+  void bbclear() { varcache = null; tuplecache = null; loadcache = null; }
   static bool sideeffecty(string s) {
     if (s.sw("call")) return true;
     if (s.sw("load")) return true;
@@ -441,15 +452,36 @@ void formTuple(LLVMFile lf, string[] args...) {
   }
   tuptype = qformat("{", tuptype, "}");
   string res = "undef";
+  string[] parts;
   foreach (i, type; args) if (i%2 == 0) {
     auto arg = args[i+1];
     if (type.find("{") != -1) {
       // logln("formTuple(", args, ")");
       // fail;
     }
+    parts ~= arg;
     res = save(lf, "insertvalue ", tuptype, " ", res, ", ", type, " ", arg, ", ", i/2);
   }
+  lf.tuplecache[res] = parts;
   lf.push(res);
+}
+
+string extractvalue(LLVMFile lf, string subtype, string type, string str, int i) {
+  if (auto p = str in lf.tuplecache) return (*p)[i];
+  if (auto p = str in lf.loadcache) {
+    string valuetype, ptrtype, ptr;
+    ptuple(valuetype, ptrtype, ptr) = *p;
+    auto gep = save(lf, getelementptr_inbounds(valuetype, ptrtype, ptr, qformat("i32 0, i32 ", i)));
+    string sub_ptrtype;
+    if (ptrtype.endsWith("addrspace(1)*")) {
+      sub_ptrtype = qformat(subtype, " addrspace(1)*");
+    } else {
+      sub_ptrtype = qformat(subtype, "*");
+    }
+    ll_load(lf, subtype, sub_ptrtype, gep);
+    return lf.pop();
+  }
+  return save(lf, "extractvalue ", type, " ", str, ", ", i);
 }
 
 string alloca(LLVMFile lf, string size, string type = null) {
@@ -592,24 +624,29 @@ string getelementptr_ex(string basetype, string value, string indexes) {
 }
 
 string getelementptr_inbounds(string basetype, string value, string indexes) {
-  if (llvmver() >= 37) {
-    return qformat("getelementptr inbounds ", basetype, ", ", basetype, "* ", value, ", ", indexes);
-  }
-  return qformat("getelementptr inbounds ", basetype, "* ", value, ", ", indexes);
+  return getelementptr_inbounds(basetype, basetype~"*", value, indexes);
 }
 
-string ll_load(string basetype, string value) {
+string getelementptr_inbounds(string basetype, string ptrtype, string value, string indexes) {
   if (llvmver() >= 37) {
-    return qformat("load ", basetype, ", ", basetype, "* ", value);
+    return qformat("getelementptr inbounds ", basetype, ", ", ptrtype, " ", value, ", ", indexes);
   }
-  return qformat("load ", basetype, "* ", value);
+  return qformat("getelementptr inbounds ", ptrtype, " ", value, ", ", indexes);
 }
 
-string ll_load(string basetype, string ptrtype, string value) {
+void ll_load(LLVMFile lf, string basetype, string value) {
+  ll_load(lf, basetype, basetype~"*", value);
+}
+
+void ll_load(LLVMFile lf, string basetype, string ptrtype, string value) {
+  string var;
   if (llvmver() >= 37) {
-    return qformat("load ", basetype, ", ", ptrtype, " ", value);
+    var = save(lf, "load ", basetype, ", ", ptrtype, " ", value);
+  } else {
+    var = save(lf, "load ", ptrtype, " ", value);
   }
-  return qformat("load ", ptrtype, " ", value);
+  lf.loadcache[var] = stuple(basetype, ptrtype, value);
+  lf.push(var);
 }
 
 void splitstore(LLVMFile lf, string fromtype, string from, string totype, string to, bool addrspace1, bool nontemporal = false) {
@@ -636,7 +673,7 @@ void splitstore(LLVMFile lf, string fromtype, string from, string totype, string
   string[] types2;
   structDecompose(totype, (string s) { types2 ~= s; });
   structDecompose(fromtype, (string subtype) {
-    auto elem = save(lf, "extractvalue ", fromtype, " ", from, ", ", i);
+    auto elem = extractvalue(lf, subtype, fromtype, from, i);
     string gep;
     if (llvmver() < 37) {
       gep = save(lf, "getelementptr inbounds ", totype, "* ", to, ", i32 0, i32 ", i);

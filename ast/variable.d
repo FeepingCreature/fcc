@@ -12,7 +12,7 @@ class Variable : LValue, Named {
       auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
       load(lf, getelementptr_inbounds(stacktype, stackp, qformat("i32 0, i32 ", baseIndex)));
       // logln(lf.count, ":", lf.fid, ": ", stacktype, " and ", type, " -- ", typeToLLVM(type), ", ", typeToLLVM(type, true));
-      load(lf, ll_load(typeToLLVM(type), lf.pop()));
+      ll_load(lf, typeToLLVM(type), lf.pop());
     }
     void emitLocation(LLVMFile lf) {
       if (!stacktype) fail;

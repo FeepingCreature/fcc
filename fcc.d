@@ -931,7 +931,7 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
             foreach (i, t1; a) {
               auto t2 = b[i];
               string val;
-              if (fromIsStruct) val = save(lf, "extractvalue ", from, " ", v, ", ", i);
+              if (fromIsStruct) val = extractvalue(lf, t1, from, v, i);
               else val = save(lf, "extractelement ", from, " ", v, ", i32 ", i);
               if (t1 != t2) {
                 llcast(lf, t1, t2, val);
@@ -950,13 +950,15 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
         auto fs = bitcastptr(lf, from, to, ap);
         splitstore(lf, from, v, from, ap, false);
         // put(lf, "store ", from, " ", v, ", ", from, "* ", ap);
-        v = save(lf, ll_load(to, fs));
+        ll_load(lf, to, fs);
+        v = lf.pop();
       } else {
         auto ap = alloca(lf, "1", to);
         auto fs = bitcastptr(lf, to, from, ap);
         splitstore(lf, from, v, from, fs, false);
         // put(lf, "store ", from, " ", v, ", ", from, "* ", fs);
-        v = save(lf, ll_load(to, ap));
+        ll_load(lf, to, ap);
+        v = lf.pop();
       }
     } else if (from.endsWith("*") && to == "i32") {
       v = save(lf, "ptrtoint ", from, " ", v, " to i32");

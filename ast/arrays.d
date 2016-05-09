@@ -443,8 +443,8 @@ class ArrayExtender : Expr {
       auto art = typeToLLVM(array.valueType());
       auto exs = save(lf, ext); // cap
       // extract length, ptr
-      auto l = save(lf, "extractvalue ", art, " ", ars, ", 0");
-      auto p = save(lf, "extractvalue ", art, " ", ars, ", 1");
+      auto l = extractvalue(lf, "i32", art, ars, 0);
+      auto p = extractvalue(lf, "i8*", art, ars, 1);
       formTuple(lf, "i32", exs, "i32", l, typeToLLVM(fastalloc!(Pointer)(baseType), true), p);
     }
   }

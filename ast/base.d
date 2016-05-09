@@ -1141,7 +1141,7 @@ class LLVMRef : LValue {
     void emitLLVM(LLVMFile lf) {
       if (!location) fail;
       if (state != 2) fail;
-      load(lf, ll_load(typeToLLVM(type), location));
+      ll_load(lf, typeToLLVM(type), location);
     }
     void emitLocation(LLVMFile lf) {
       if (!location) fail;

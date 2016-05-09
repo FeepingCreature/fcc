@@ -727,14 +727,14 @@ class MemberAccess_Expr : Expr, HasInfo {
         auto tmp = alloca(lf, "1", bs);
         put(lf, "; of union");
         put(lf, "store ", bs, " ", src, ", ", bs, "* ", tmp);
-        load(lf, ll_load(mt, bitcastptr(lf, bs, mt, tmp)));
+        ll_load(lf, mt, bitcastptr(lf, bs, mt, tmp));
         return;
       }
       // put(lf, "; mae ", this);
       // put(lf, "; to ", stm, " into ", typeToLLVM(bvt), " (", bvt, ")");
       // don't want to fall over and die if user code has a variable called "self"
       // if (name == "self") fail; // ast.vector done a baad baad thing
-      auto ex = save(lf, "extractvalue ", srctype, " ", src, ", ", stm.index);
+      auto ex = extractvalue(lf, extype, srctype, src, stm.index);
       auto from = extype, to = typeToLLVM(stm.type);
       if (from == to) { push(lf, ex); }
       else { llcast(lf, from, to, ex); }
@@ -755,7 +755,7 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
       emitLocation(lf);
       auto ls = lf.pop();
       auto lt = typeToLLVM(stm.type);
-      load(lf, ll_load(lt, ls));
+      ll_load(lf, lt, ls);
     }
     void emitLocation(LLVMFile lf) {
       (fastcast!(LValue)(base)).emitLocation(lf);

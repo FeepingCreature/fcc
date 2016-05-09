@@ -27,7 +27,7 @@ class ExternCGlobVar : LValue, Named {
       auto lltype = typeToLLVM(type);
       checkSection(lf, lltype);
       emitLocation(lf);
-      load(lf, ll_load(lltype, lf.pop()));
+      ll_load(lf, lltype, lf.pop());
     }
     void emitLocation(LLVMFile lf) {
       auto lltype = typeToLLVM(type);

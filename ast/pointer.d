@@ -130,9 +130,9 @@ class DerefExpr_ : LValue, HasInfo {
         if (llvmver() >= 34) addrspacecast = "addrspacecast ";
         auto c = save(lf, src);
              c = save(lf, addrspacecast, ptrtype, " ", c, " to ", fixedtype);
-        load(lf, ll_load(ptrtype[0..$-1], fixedtype, c));
+        ll_load(lf, ptrtype[0..$-1], fixedtype, c);
       } else {
-        load(lf, ll_load(typeToLLVM(valueType()), typeToLLVM(src.valueType), save(lf, src)));
+        ll_load(lf, typeToLLVM(valueType()), typeToLLVM(src.valueType), save(lf, src));
       }
     }
     void emitLocation(LLVMFile lf) {
@@ -310,7 +310,7 @@ class PointerIndexAccess : LValue {
     }
     void emitLLVM(LLVMFile lf) {
       emitLocation(lf);
-      load(lf, ll_load(typeToLLVM(valueType()), lf.pop()));
+      ll_load(lf, typeToLLVM(valueType()), lf.pop());
     }
   }
 }
