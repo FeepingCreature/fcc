@@ -148,6 +148,7 @@ class LLVMFile {
   int metadata_count;
   string curSectionName;
   string curSectionAnnotation;
+  string cu; // dwarf compile unit
   
   bool[string] doOnce;
   

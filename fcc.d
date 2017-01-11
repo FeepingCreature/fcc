@@ -1214,6 +1214,30 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotScope, "tree.scope");
 
 
+pragma(set_attribute, llvm_init_debuginfo, externally_visible);
+extern(C) void llvm_init_debuginfo(LLVMFile lf) {
+  if (once(lf, "debug info version")) {
+    auto empty = addMetadata(lf, `!{}`);
+    auto file = addMetadata(lf, `!DIFile(filename: "`, lf.fn.filenamepart(), `", directory: "`, lf.fn.dirpart(), `")`);
+    if (llvmver() >= 39) {
+        lf.cu = addMetadata(lf, `distinct !DICompileUnit(language: DW_LANG_C99, file: `, file, `, `,
+    `producer: "neat1", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: `, empty, `, `,
+        `retainedTypes: `, empty, `, globals: `, empty, `, imports: `, empty, `)`
+        );
+    } else {
+        lf.cu = addMetadata(lf, `distinct !DICompileUnit(language: DW_LANG_C99, file: `, file, `, `,
+        `producer: "neat1", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: `, empty, `, `,
+        `retainedTypes: `, empty, `, subprograms: `, empty, `, globals: `, empty, `, imports: `, empty, `)`
+        );
+    }
+    auto info1 = addMetadata(lf, `!{i32 2, !"Dwarf Version", i32 2}`);
+    auto info2 = addMetadata(lf, `!{i32 2, !"Debug Info Version", i32 3}`);
+    auto info3 = addMetadata(lf, `!{i32 1, !"PIC Level", i32 2}`);
+    putSection(lf, "module", `!llvm.dbg.cu = !{`, lf.cu, `}`);
+    putSection(lf, "module", `!llvm.module.flags = !{`, info1, `, `, info2, `, `, info3, `}`);
+  }
+}
+
 pragma(set_attribute, _line_numbered_statement_emitLLVM, externally_visible);
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
@@ -1222,20 +1246,8 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
     string name; int line, column;
     lns.getInfo(name, line, column);
     if (line || column) {
+      llvm_init_debuginfo(lf);
       // auto sc = addMetadata(lf, `!DIFile(filename: "`, lf.fn, `", directory: ".")`);
-      if (once(lf, "debug info version")) {
-        auto empty = addMetadata(lf, `!{}`);
-        auto file = addMetadata(lf, `!DIFile(filename: "`, lf.fn.filenamepart(), `", directory: "`, lf.fn.dirpart(), `")`);
-        auto cu = addMetadata(lf, `distinct !DICompileUnit(language: DW_LANG_C99, file: `, file, `, `,
-          `producer: "neat1", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: `, empty, `, `,
-          `retainedTypes: `, empty, `, subprograms: `, empty, `, globals: `, empty, `, imports: `, empty, `)`
-        );
-        auto info1 = addMetadata(lf, `!{i32 2, !"Dwarf Version", i32 2}`);
-        auto info2 = addMetadata(lf, `!{i32 2, !"Debug Info Version", i32 3}`);
-        auto info3 = addMetadata(lf, `!{i32 1, !"PIC Level", i32 2}`);
-        putSection(lf, "module", `!llvm.dbg.cu = !{`, cu, `}`);
-        putSection(lf, "module", `!llvm.module.flags = !{`, info1, `, `, info2, `, `, info3, `}`);
-      }
       setFunctionAnnotation(lf, qformat(`, !dbg `, addMetadata(lf, `!DILocation(line: `, line, `, column: `, column, `, scope: `, f, `)`)));
     }
   }

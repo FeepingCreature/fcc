@@ -16,6 +16,7 @@ interface StoresDebugState {
 
 extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf);
 extern(C) void dependency_checkCallerDeps(string[]);
+extern(C) void llvm_init_debuginfo(LLVMFile lf);
 
 string typeToLLVMRet(IType type, bool subst = false) {
   if (subst) {
@@ -542,12 +543,24 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         auto mod = coarseModule;
         if (!mod) mod = get!(IModule);
         auto file = addMetadata(lf, `!DIFile(filename: "`, mod.filename().filenamepart(), `", directory: "`, mod.filename().dirpart(), `")`);
-        dwarfMetadata = addMetadata(lf, `distinct !DISubprogram(`,
-          `name: "`, name, `", scope: `, file, `, file: `, file, `, `,
-          `line: 1, type: `, addMetadata(lf, `!DISubroutineType(types: `, addMetadata(lf, `!{null}`), `)`), `, `,
-          `isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: false, variables: `, addMetadata(lf, `!{}`),
-          `)`
-        );
+        if (llvmver() >= 39) {
+          llvm_init_debuginfo(lf);
+          assert(lf.cu.length);
+          dwarfMetadata = addMetadata(lf, `distinct !DISubprogram(`,
+            `name: "`, name, `", scope: `, file, `, file: `, file, `, `,
+            `line: 1, type: `, addMetadata(lf, `!DISubroutineType(types: `, addMetadata(lf, `!{null}`), `)`), `, `,
+            `isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: false, variables: `, addMetadata(lf, `!{}`), `, `,
+            `unit: `, lf.cu,
+            `)`
+          );
+        } else {
+          dwarfMetadata = addMetadata(lf, `distinct !DISubprogram(`,
+            `name: "`, name, `", scope: `, file, `, file: `, file, `, `,
+            `line: 1, type: `, addMetadata(lf, `!DISubroutineType(types: `, addMetadata(lf, `!{null}`), `)`), `, `,
+            `isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: false, variables: `, addMetadata(lf, `!{}`),
+            `)`
+          );
+        }
         // lf.dwarf_subprogs ~= "metadata "~dwarfMetadata;
         lf.currentFunctionDwarfMetadata = dwarfMetadata;
       }
